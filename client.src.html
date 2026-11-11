@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Автомонополист</title>
+<style>
+:root{--bg:#f4f1e8;--fg:#1c1b19;--card:#fff;--mut:#6b6659;--acc:#e0a800;--line:#d9d3c3;--bad:#b3261e;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#16161a;--fg:#eceae4;--card:#222228;--mut:#9a968b;--line:#34343c;--bad:#ff8a80;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#16161a;--fg:#eceae4;--card:#222228;--mut:#9a968b;--line:#34343c;--bad:#ff8a80;color-scheme:dark}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:10px}
+h1{font-size:20px;margin:6px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0}
+button{font:inherit;background:var(--acc);color:#1c1b19;border:0;border-radius:8px;padding:8px 12px;margin:3px 4px 3px 0;cursor:pointer}
+button.sec{background:var(--line);color:var(--fg)}
+input,select{font:inherit;padding:7px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);max-width:100%}
+.board{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,minmax(64px,1fr));gap:4px}
+.cell{border:1px solid var(--line);border-radius:8px;padding:4px;font-size:12px;background:var(--card);display:flex;flex-direction:column;justify-content:space-between;min-width:0}
+.cell.now{outline:3px solid var(--acc)}
+.mid{grid-row:2/4;grid-column:2/4;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;font-size:13px;color:var(--mut)}
+.tok{display:inline-block;width:20px;height:20px;border-radius:50%;color:#fff;font-size:11px;text-align:center;line-height:20px;margin-right:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 300px;min-width:0}
+.mut{color:var(--mut)}.bad{color:var(--bad)}
+.log{max-height:180px;overflow:auto;font-size:13px}
+.timer{font-weight:700;font-size:18px}
+.wide{overflow-x:auto}
+.chip{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;margin:1px 2px 1px 0}
+.d-vedro{background:#fff;color:#111;border:1px solid #888}.d-bitye{background:#2a8a3e;color:#fff}.d-premium{background:#2a62c9;color:#fff}.d-retro{background:#c62828;color:#fff}
+#dice{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:9}
+.die{width:110px;height:110px;border-radius:18px;background:#fff;color:#111;font:700 56px/110px system-ui;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.roll{animation:roll .9s ease-out}@keyframes roll{0%{transform:translateX(-180px) rotate(-540deg)}100%{transform:none}}
+</style></head><body><main>
+<h1>🚗 Автомонополист <span class="mut" style="font-size:13px">— онлайн</span></h1>
+<div id="app"></div><div id="dice"></div>
+</main>
+<script>
+/*ENGINE*/
+
+const $=(s)=>document.querySelector(s);
+const COL=['#d33','#27a','#2a5','#d80','#92c','#088'];
+const CN={skupka:'Скупка',vedro:'Ведра',avtoservis:'Автосервис',gonka_plus1:'Гонка +1',avtopodbor:'Автоподбор',bitye:'Битьё',premium:'Премиум',gonka_reroll:'Гонка (переброс)',prokat:'Прокат',retro:'Ретро'};
+const DN={vedro:'Ведра',bitye:'Битьё',premium:'Премиум',retro:'Ретро'};
+const GRID=[[4,4],[4,3],[4,2],[4,1],[3,1],[2,1],[1,1],[1,2],[1,3],[1,4],[2,4],[3,4]];
+const eur=(n)=>Number(n).toLocaleString('ru-RU')+' €';
+let ME=-1,ROOM='',TOKEN='',CAT=null,LOBBY=null,es=null,lastGains=[],G=null,logs=[],deadline=0,curKey='',paused=null,toast='',rt=-1,rs=100;
+function tkey(){const s=G;return s.phase==='move'?'m'+s.turn:s.phase==='auction'?'a'+s.auction.bid+'/'+s.auction.bidder:s.phase==='race_join'?'r'+s.turn:s.phase==='loan'?'l':'t'+s.turn}
+function secs(k){return k[0]==='m'?MOVE_SECONDS:k[0]==='a'?AUCTION_SECONDS:k[0]==='r'?RACE_JOIN_SECONDS:k[0]==='l'?LOAN_SECONDS:ACT_SECONDS}
+const TL={g:'Бросок кубика: ',m:'Выбор шагов: ',t:'Решение: ',a:'Аукцион: ',r:'Окно гонки: ',l:'Займ: '};
+
+function nm(i){return G.players[i].name}
+function cn(id){return G.catalog[id].name}
+function fmt(e){const n=nm;switch(e.type){
+case 'game_start':return 'Игра началась, первым ходит '+n(e.first);
+case 'moved':return n(e.player)+' идёт на '+e.steps+(e.cost?' (−'+eur(e.cost)+')':'')+' → '+CN[e.cell];
+case 'revealed':return 'Открыта карта: '+cn(e.cardId);
+case 'bought':return n(e.player)+' купил «'+cn(e.cardId)+'» за '+eur(e.price);
+case 'car_gained':{const k=G.catalog[e.cardId];return n(e.player)+' получает '+chip(e.cardId)+' · продажа '+eur(k.sell)+' · '+rep(k,e.defect,e.defectCost)}
+case 'swap':return n(e.player)+': обмен «'+cn(e.from)+'» на две машины «Ведра»';
+case 'auction_started':return n(e.player)+' объявил аукцион, ставка '+eur(e.bid);
+case 'bid':return n(e.player)+' ставит '+eur(e.amount);
+case 'auction_pass':return n(e.player)+' пас';
+case 'auction_won':return n(e.player)+' выигрывает «'+cn(e.cardId)+'» за '+eur(e.price);
+case 'discarded':return 'Карта «'+cn(e.cardId)+'» ушла вниз колоды';
+case 'repair_roll':return e.die?'Куб для «Битьё»: '+e.die:'Автосервис';
+case 'repaired':return n(e.player)+' починил '+e.carIds.length+' шт. за '+eur(e.total);
+case 'sold':return n(e.player)+' продал машины на '+eur(e.total);
+case 'rent':return n(e.player)+' получает за прокат '+eur(e.total);
+case 'taxi':return n(e.player)+' в такси: куб '+e.die+' → +'+eur(e.income);
+case 'race_started':return n(e.organizer)+' организует гонку, фонд '+eur(e.pot);
+case 'race_challenge':return n(e.organizer)+' вызывает '+n(e.target)+', взнос '+eur(e.stake);
+case 'race_join':return n(e.player)+' вступает в гонку';
+case 'race_roll':return n(e.player)+' бросает: '+e.die+(e.tie?' (перебросок)':'');
+case 'race_tie':return 'Одинаковые числа — перебрасывают: '+e.players.map(n).join(', ');
+case 'loan_warning':return '⚠ '+n(e.borrower)+' должен '+n(e.lender)+' '+eur(e.due)+': на следующем круге заберут машину';
+case 'loan_seized':return n(e.borrower)+' отдаёт '+n(e.lender)+' машину «'+cn(e.cardId)+'» (оценка '+eur(e.value)+') в счёт долга '+eur(e.due);
+case 'race_rolls':return 'Кубы: '+Object.entries(e.rolls).map(([k,v])=>n(+k)+' '+v).join(', ');
+case 'race_plus1':return n(e.player)+' получает +1';
+case 'race_reroll':return n(e.player)+' перебрасывает: '+e.die+' (было '+e.first+')';
+case 'race_won':return n(e.player)+' выигрывает гонку: '+eur(e.pot);
+case 'loan_request':return n(e.borrower)+' просит в долг '+eur(e.amount);
+case 'loan_given':return n(e.lender)+' даёт '+n(e.borrower)+' '+eur(e.amount);
+case 'loan_cancelled':return 'Запрос займа отменён';
+case 'loan_repaid':return n(e.borrower)+' возвращает '+n(e.lender)+' '+eur(e.amount);
+case 'loan_forced':return n(e.borrower)+' принудительно возвращает '+eur(e.amount)+' → '+n(e.lender);
+case 'swap_pay':return n(e.player)+': обмен с доплатой '+eur(e.diff);
+case 'eliminated':return n(e.player)+' выбывает из-за долга';
+case 'win':return '🏆 Победитель: '+n(e.player);
+default:return e.type}}
+
+const api=(p,b)=>fetch(p,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json()).catch(()=>({error:'Нет связи с сервером'}));
+const store={get(){try{return JSON.parse(localStorage.getItem('am_session')||'null')}catch(e){return null}},set(v){try{v?localStorage.setItem('am_session',JSON.stringify(v)):localStorage.removeItem('am_session')}catch(e){}}};
+function boot(){const q=new URLSearchParams(location.search).get('room');const sv=store.get();
+ if(sv&&(!q||q.toUpperCase()===sv.ROOM)){ROOM=sv.ROOM;TOKEN=sv.TOKEN;connect()}else lobby()}
+function connect(){if(es)es.close();es=new EventSource('/api/events?room='+encodeURIComponent(ROOM)+'&token='+encodeURIComponent(TOKEN));es.onmessage=(m)=>onData(JSON.parse(m.data))}
+function leave(){if(es)es.close();store.set(null);ROOM='';TOKEN='';G=null;logs=[];lastGains=[];history.replaceState(null,'','/');lobby()}
+function onData(d){
+ if(d.error){if(es)es.close();store.set(null);ROOM='';TOKEN='';lobby(d.error);return}
+ ME=d.me;LOBBY=d;if(d.catalog)CAT=d.catalog;
+ if(d.phase==='lobby'){G=null;lobby();return}
+ G=Object.assign(d.state,{catalog:CAT});deadline=Date.now()+(d.deadline-d.now);curKey=d.key;
+ const ev=d.events||[];ev.forEach(e=>logs.unshift(fmt(e)));const gs=ev.filter(e=>e.type==='car_gained');if(gs.length)lastGains=gs;
+ toast='';render();if(ev.length)showDice(ev)}
+function lobby(msg){const app=$('#app');
+ if(!TOKEN){const q=(new URLSearchParams(location.search).get('room')||'').toUpperCase();
+  app.innerHTML='<div class="card"><p>Ваше имя:</p><input id="nm" maxlength="16" style="width:100%">'+(msg?'<p class="bad">'+msg+'</p>':'')+'<p><button id="cr">Создать комнату</button></p><p>или код комнаты: <input id="rc" value="'+q+'" maxlength="4" style="width:90px;text-transform:uppercase"> <button id="jn" class="sec">Войти</button></p></div>';
+  const go=async(path,body)=>{const r=await api(path,body);if(r.error){lobby(r.error);return}ROOM=r.room;TOKEN=r.token;store.set({ROOM,TOKEN});history.replaceState(null,'','/?room='+ROOM);connect()};
+  $('#cr').onclick=()=>go('/api/create',{name:$('#nm').value});
+  $('#jn').onclick=()=>go('/api/join',{name:$('#nm').value,room:$('#rc').value.trim().toUpperCase()});return}
+ if(!LOBBY){app.innerHTML='<div class="card">Подключаемся…</div>';return}
+ const link=location.origin+'/?room='+ROOM;
+ app.innerHTML='<div class="card"><p>Комната <b style="font-size:22px">'+ROOM+'</b></p><p>Ссылка для друзей:<br><input readonly value="'+link+'" style="width:100%" onclick="this.select()"></p><p><b>Игроки ('+LOBBY.players.length+'/6):</b></p>'+LOBBY.players.map((n,i)=>'<div><span class="tok" style="background:'+COL[i]+'">'+n[0]+'</span>'+n+(i===0?' (создатель)':'')+(i===ME?' — это вы':'')+'</div>').join('')+
+  (ME===0?'<p>Цель партии: <select id="goal"><option value="30000">30 000 €</option><option value="50000">50 000 €</option><option value="100000">100 000 €</option></select></p><button id="st"'+(LOBBY.players.length<2?' disabled':'')+'>Начать игру</button>':'<p class="mut">Ждём, пока создатель начнёт игру…</p>')+' <button class="sec" id="lv">Выйти</button></div>';
+ const st=$('#st');if(st)st.onclick=async()=>{const r=await api('/api/start',{room:ROOM,token:TOKEN,goal:+$('#goal').value});if(r.error)alert(r.error)};
+ $('#lv').onclick=leave}
+async function act(a){const r=await api('/api/action',{room:ROOM,token:TOKEN,action:a});if(r.error){toast=r.error;render()}}
+const actAs=(p,a)=>act(a);
+
+const val=(c)=>{const k=G.catalog[c.id];return(c.defect&&c.defect.kind==='unrepairable'&&!c.repaired)?k.auction_start:k.sell};
+const chip=(id)=>{const k=G.catalog[id];return '<span class="chip d-'+k.deck+'">'+k.name+'</span>'};
+function rep(k,dn,dc){if(k.deck==='bitye')return 'ремонт '+[k.repair.die_1_2,k.repair.die_3_4,k.repair.die_5_6].map(eur).join(' / ')+' (куб 1–2 / 3–4 / 5–6)';if(k.deck==='retro')return 'реставрация '+eur(k.repair.cost);return dn?('дефект «'+dn+'»'+(dc?', ремонт '+eur(dc):' — не ремонтируется')):'ремонт по дефекту'}
+function carLabel(c){return chip(c.id)+(c.repaired?' ✓':c.defect?' ('+c.defect.name+')':'')+' → '+eur(val(c))}
+function cardPanel(id,d,title){const c=G.catalog[id];let x='<div class="row"><div class="card"><span class="chip d-'+c.deck+'">'+DN[c.deck]+'</span> <b>'+c.name+'</b><br>'+(c.buy!=null?'Покупка: '+eur(c.buy)+'<br>':'Только аукцион<br>')+'Старт аукциона: '+eur(c.auction_start)+'<br>Продажа: '+eur(c.sell)+'<br>'+rep(c)+'</div>';
+ if(d)x+='<div class="card"><b>Дефект: '+d.name+'</b><br>'+(d.cost?'Ремонт: '+eur(d.cost):(d.text||'не ремонтируется'))+'</div>';
+ return '<div class="card"><b>'+(title||'Открытая карта')+'</b>'+x+'</div></div>'}
+function showDice(evs){const L=[];evs.forEach(e=>{if(e.type==='race_roll')L.push([nm(e.player)+(e.tie?' (перебросок)':''),e.die]);else if(e.type==='race_reroll')L.push([nm(e.player)+' (переброс)',e.die]);else if(e.type==='taxi')L.push([nm(e.player)+' · такси',e.die]);else if(e.type==='repair_roll'&&e.die)L.push(['Куб ремонта «Битьё»',e.die])});
+ const el=$('#dice');let i=0;(function step(){if(i>=L.length){el.style.display='none';return}const w=L[i][0],v=L[i][1];i++;el.style.display='flex';el.innerHTML='<div style="text-align:center;color:#fff"><div style="margin-bottom:10px;font-size:18px">'+w+'</div><div class="die roll">?</div></div>';const d=el.querySelector('.die');let k=0;const iv=setInterval(()=>{d.textContent=1+Math.floor(Math.random()*6);if(++k>9){clearInterval(iv);d.textContent=v}},60);setTimeout(step,1700)})()}
+
+function controls(){
+const s=G,p=s.players[ME],acts=legalActions(s),h=[];const has=(t)=>acts.filter(a=>a.type===t);
+if(['move','act'].includes(s.phase))p.cars.filter(c=>c.defect&&['unrepairable','buyer'].includes(c.defect.kind)).forEach(c=>h.push(`<button class="sec" data-a='{"type":"sell_now","carIds":["${c.id}"]}'>Продать сейчас: ${cn(c.id)} → ${eur(c.defect.kind==='buyer'?s.catalog[c.id].sell:s.catalog[c.id].auction_start)}</button>`));
+if(s.phase==='move')has('move').forEach(a=>h.push(`<button data-a='${JSON.stringify({type:'move',steps:a.steps})}'>${a.steps} ${a.steps==1?'шаг':'шага'} · ${a.cost?eur(a.cost):'бесплатно'}</button>`));
+if(s.phase==='act'){
+ acts.forEach(a=>{const j=(o)=>JSON.stringify(o).replace(/'/g,'&#39;');
+  if(a.type==='buy_start')h.push(`<button data-a='${j({type:'buy_start',deck:a.deck})}'>Купить${a.deck?' из «'+DN[a.deck]+'»':''}</button>`);
+  if(a.type==='autoservice')h.push(`<button data-a='${j({type:'autoservice'})}'>Ремонт</button>`);
+  if(a.type==='sell'){h.push('<p>Что продать (отметьте машины):</p>');a.carIds.forEach(id=>{const c=p.cars.find(x=>x.id===id);h.push(`<label style="display:block"><input type="checkbox" class="sc" value="${id}" data-v="${a.quotes[id]}"> ${chip(id)}${c.repaired?' ✓':''} → <b>${eur(a.quotes[id])}</b></label>`)});h.push('<p>Итого: <b id="st">0 €</b></p><button data-sell="1">Продать выбранные</button>')}
+  if(a.type==='rent')h.push(`<button data-a='${j({type:'rent'})}'>Сдать в прокат</button>`);
+  if(a.type==='race_start')h.push(`<button data-a='${j({type:'race_start'})}'>Начать гонку</button>`);
+  if(a.type==='swap_pay')Object.keys(s.decks).filter(d=>s.decks[d].length).forEach(d=>h.push(`<button class="sec" data-a='${j({type:'swap_pay',carId:a.carId,deck:d})}'>Обмен «${cn(a.carId)}» → ${DN[d]}</button>`));
+  if(a.type==='taxi')h.push(`<button class="sec" data-a='${j({type:'taxi',carId:a.carId})}'>Такси: ${cn(a.carId)}</button>`);
+  if(a.type==='pass')h.push(`<button class="sec" data-a='{"type":"pass"}'>Пропустить</button>`)})}
+if(s.phase==='buy'){const c=s.catalog[s.pending.cardId];
+ h.push(`<p><b>${c.name}</b> · ${DN[c.deck]} · продажа ${eur(c.sell)}${c.buy!=null?' · покупка '+eur(c.buy):''} · старт аукциона ${eur(c.auction_start)}</p>`);
+ has('buy_direct').forEach(a=>h.push(`<button data-a='{"type":"buy_direct"}'>Купить за ${eur(a.price)}</button>`));
+ has('auction_start').forEach(a=>h.push(`<input id="amt" type="number" value="${a.min}" min="${a.min}" step="10" style="width:110px"><button data-auc="1">Аукцион</button>`));
+ h.push(`<button class="sec" data-a='{"type":"decline"}'>Отказаться</button>`)}
+if(s.phase==='auction'){const A=s.auction;
+ h.push(`<p>Аукцион: «${cn(A.cardId)}» · сейчас <b>${eur(A.bid)}</b> (${nm(A.bidder)}). После каждой ставки новый отсчёт 30 с. У вас ${eur(p.cash)}.</p>`+(A.passed&&A.passed.includes(ME)?'<p class="mut">Вы отказались от торгов.</p>':A.bidder===ME?'<p class="mut">Ваша ставка лидирует.</p>':`<input id="amt" type="number" value="${A.bid+10}" min="${A.bid+1}" step="10" style="width:110px"><button data-bid="1">Сделать ставку</button> <button class="sec" data-a='{"type":"auction_pass"}'>Отказаться от торгов</button>`))}
+if(s.phase==='repair'){const r=has('repair')[0],cs=repairCosts(s,p.id);
+ h.push(`<p>${r.roll?'Куб «Битьё»: <b>'+r.roll+'</b>. ':''}Отметьте машины, итог считается ниже. У вас ${eur(p.cash)}.</p>`);
+ p.cars.filter(c=>cs[c.id]!=null).forEach(c=>h.push(`<label style="display:block"><input type="checkbox" class="rc" value="${c.id}" data-c="${cs[c.id]}"> ${carLabel(c)} — <b>${eur(cs[c.id])}</b></label>`));
+ h.push(`<p>Итого: <b id="rt2">0 €</b> <span id="rw" class="bad"></span></p><button data-rep="1">Починить выбранные</button><button class="sec" data-a='{"type":"repair","carIds":[]}'>Ничего не чинить</button>`)}
+if(s.phase==='race_setup'){const others=s.players.filter(q=>q.id!==p.id&&!q.eliminated&&q.cars.length&&Math.floor(q.cash/2)>=100);
+ h.push(`<button data-a='{"type":"race_open"}'>Открытая гонка (без вызова)</button>`);
+ if(others.length&&p.cash>=100){if(!others.some(q=>q.id===rt))rt=others[0].id;const T=s.players[rt],mx=Math.floor(Math.min(T.cash/2,p.cash)/100)*100;rs=Math.max(100,Math.min(rs,mx));
+  h.push(`<p>Вызвать: <select id="tg">${others.map(q=>`<option value="${q.id}" ${q.id===rt?'selected':''}>${q.name} (${eur(q.cash)})</option>`).join('')}</select><br>Взнос: <button class="sec" data-st="-100">−100</button><b> ${eur(rs)} </b><button class="sec" data-st="100">+100</button> <span class="mut">максимум ${eur(mx)}: не больше половины денег соперника и ваших</span><br><button data-ch="1">Вызвать на гонку</button></p>`)}}
+if(s.phase==='race_join'){const el=raceEligible(s).includes(ME);h.push(`<p>Гонка: взнос ${eur(s.race.stake)}, фонд ${eur(s.race.pot)}. Участники: ${s.race.participants.map(nm).join(', ')}. Присоединиться может любой игрок (30 с).</p>`+(el?`<button data-a='{"type":"race_join"}'>Вступить (${eur(s.race.stake)})</button>`:'')+(s.current===ME?`<button class="sec" data-a='{"type":"race_close"}'>Начать гонку</button>`:''))}
+if(s.phase==='race_roll')h.push('<p>Ваш бросок в гонке (15 с, иначе кубик бросится сам).</p><button data-a=\'{"type":"race_roll"}\'>Бросить кубик</button>');
+if(s.phase==='race_reroll')h.push(`<p>Организатор может перебросить куб (максимум из двух).</p><button data-a='{"type":"race_reroll"}'>Перебросить</button><button class="sec" data-a='{"type":"race_keep"}'>Оставить</button>`);
+return h.join('')}
+
+function render(){
+if(!G)return lobby();
+const s=G;
+const cur=s.players[actor(s)]||s.players[s.current];
+let b='';
+GRID.forEach((g,i)=>{b+=`<div class="cell ${s.players[s.current].pos===i?'now':''}" style="grid-row:${g[0]};grid-column:${g[1]}"><b>${CN[BOARD[i]]}</b><span>${s.players.filter(q=>q.pos===i).map(q=>`<span class="tok" style="background:${COL[q.id]}">${q.name[0]}</span>`).join('')}</span></div>`});
+b+=`<div class="mid"><div>Круг ${s.round} · цель ${eur(s.goal)}</div><div>${Object.entries(s.decks).map(([k,v])=>DN[k]+': '+v.length).join(' · ')}</div></div>`;
+let side=s.players.map(q=>`<div class="card" style="${q.id===s.current?'border-color:var(--acc)':''}${q.eliminated?';opacity:.5':''}"><span class="tok" style="background:${COL[q.id]}">${q.name[0]}</span><b>${q.name}</b> — ${eur(q.cash)}${q.eliminated?' (выбыл)':''}<div class="mut">${q.cars.map(carLabel).join('<br>')||'нет машин'}</div>${q.cars.length?'<div><b>≈ при продаже: '+eur(q.cars.reduce((t,c)=>t+val(c),0))+'</b></div>':''}${s.loans.filter(l=>l.borrower===q.id).map(l=>`<div class="bad">Долг ${nm(l.lender)}: ${eur(loanDue(s,l))}${s.round-l.startRound>=5?' <b>⚠ СРОЧНО верните: на следующем круге заберут машину</b>':''}</div>`).join('')}</div>`).join('');
+let top;
+if(s.phase==='over')top=`<h2>🏆 Победил ${nm(s.winner)}!</h2><button id="again">В меню</button>`;
+else{
+ const li=loanInfo(s,ME);let loan='';
+ if(s.phase==='loan'){const R=s.loanReq;loan='<p><b>'+nm(R.borrower)+'</b> просит в долг '+eur(R.amount)+'. 15 с на ответ.</p>'+(ME===R.borrower?'<button class="sec" data-a=\'{"type":"loan_cancel"}\'>Отмена</button>':(li.canAccept?'<button data-a=\'{"type":"loan_accept"}\'>Дать в долг '+eur(R.amount)+'</button>':'<span class="mut">У вас недостаточно денег</span>'))}
+ else{if(li.canRequest)loan+=`<p class="mut">Не хватает денег? <input id="la" type="number" value="500" step="100" style="width:90px"><button class="sec" data-loan="1">Попросить в долг</button></p>`;
+  li.repayable.forEach(r=>{if(r.roundsLeft===0)loan+='<div class="bad"><b>⚠ Срочно верните долг '+nm(r.lender)+': '+eur(r.due)+'. На следующем круге у вас заберут машину.</b></div>';loan+=`<button class="sec" data-rep-loan="${r.loanId}">Вернуть ${nm(r.lender)}: ${eur(r.due)} (до взыскания машины: ${r.roundsLeft+1} кр.)</button>`})}
+ top=`<div>Ходит: <span class="tok" style="background:${COL[cur.id]}">${cur.name[0]}</span><b>${cur.name}</b> · ${eur(cur.cash)} · <span class="timer" id="tm"></span></div>${toast?`<div class="bad">${toast}</div>`:''}<div>${s.phase==='loan'?'':((['auction','race_join'].includes(s.phase)||actor(s)===ME)?controls():'<p class="mut">Ждём ход игрока '+cur.name+'…</p>')}${loan}</div>`}
+const panel=(s.phase==='buy'&&s.pending)?cardPanel(s.pending.cardId):(s.phase==='auction'&&s.auction)?cardPanel(s.auction.cardId):lastGains.map(g=>cardPanel(g.cardId,g.defect?{name:g.defect,cost:g.defectCost,text:g.defectText}:null,'Получено: '+nm(g.player))).join('');
+$('#app').innerHTML=`<div class="card">${top}</div><div class="row"><div><div class="board">${b}</div></div><div>${side}</div></div>${panel}<div class="card log">${logs.slice(0,60).map(l=>'<div>'+l+'</div>').join('')}</div>`;
+document.querySelectorAll('[data-a]').forEach(e=>e.onclick=()=>act(JSON.parse(e.dataset.a)));
+const q=(sel,f)=>{const e=document.querySelector(sel);if(e)e.onclick=f};
+q('[data-auc]',()=>act({type:'auction_start',amount:+$('#amt').value}));
+q('[data-bid]',()=>act({type:'bid',amount:+$('#amt').value}));
+document.querySelectorAll('[data-as]').forEach(e=>e.onclick=()=>{const o=JSON.parse(e.dataset.as);act({type:o.type})});
+document.querySelectorAll('[data-st]').forEach(e=>e.onclick=()=>{rs+=+e.dataset.st;render()});
+const tg=$('#tg');if(tg)tg.onchange=()=>{rt=+tg.value;render()};
+const upd=()=>{let t=0;document.querySelectorAll('.rc:checked').forEach(e=>t+=+e.dataset.c);const c=G.players[ME].cash;if($('#rt2')){$('#rt2').textContent=eur(t);$('#rw').textContent=t>c?'не хватает '+eur(t-c):''}};
+document.querySelectorAll('.rc').forEach(e=>e.onchange=upd);
+q('[data-rep]',()=>act({type:'repair',carIds:[...document.querySelectorAll('.rc:checked')].map(e=>e.value)}));
+q('[data-ch]',()=>act({type:'race_challenge',target:rt,stake:rs}));
+q('[data-loan]',()=>act({type:'loan_request',amount:+$('#la').value}));
+document.querySelectorAll('[data-lend]').forEach(e=>e.onclick=()=>actAs(+e.dataset.lend,{type:'loan_accept'}));
+document.querySelectorAll('[data-rep-loan]').forEach(e=>e.onclick=()=>act({type:'repay_loan',loanId:+e.dataset.repLoan}));
+document.querySelectorAll('.sc').forEach(e=>e.onchange=()=>{let x=0;document.querySelectorAll('.sc:checked').forEach(y=>x+=+y.dataset.v);$('#st').textContent=eur(x)});
+q('[data-sell]',()=>act({type:'sell',carIds:[...document.querySelectorAll('.sc:checked')].map(e=>e.value)}));
+q('#again',leave)}
+
+setInterval(()=>{if(!G||G.phase==='over')return;const t=$('#tm');if(t)t.textContent=(TL[curKey[0]]||'')+Math.max(0,Math.ceil((deadline-Date.now())/1000))+' с'},250);
+boot();
+</script></body></html>

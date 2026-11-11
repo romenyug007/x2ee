@@ -1,0 +1,1396 @@
+{
+ "game": "Автомонополист",
+ "currency": "EUR",
+ "rules_hint": {
+  "defect_decks": "refill endlessly in original proportions (copies x2 by default)",
+  "car_decks": "do not refill",
+  "turn_timer_sec": 30,
+  "turn_timer_scope": "whole turn",
+  "on_timeout": "move 1 step (free, skipping occupied cells), then taxi automatically (if player has cars, else skip)",
+  "race_reroll": "reroll only if first die < 6; higher of two counts"
+ },
+ "cars": [
+  {
+   "id": "vedro-1",
+   "deck": "vedro",
+   "num": 1,
+   "name": "Космич",
+   "buy": 400,
+   "sell": 2400,
+   "auction_start": 200,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-2",
+   "deck": "vedro",
+   "num": 2,
+   "name": "Баржа",
+   "buy": 400,
+   "sell": 2600,
+   "auction_start": 200,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-3",
+   "deck": "vedro",
+   "num": 3,
+   "name": "Зубило",
+   "buy": 400,
+   "sell": 2200,
+   "auction_start": 200,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-4",
+   "deck": "vedro",
+   "num": 4,
+   "name": "Пятак",
+   "buy": 500,
+   "sell": 2600,
+   "auction_start": 300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-5",
+   "deck": "vedro",
+   "num": 5,
+   "name": "Колхозник",
+   "buy": 500,
+   "sell": 2800,
+   "auction_start": 300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-6",
+   "deck": "vedro",
+   "num": 6,
+   "name": "Ботинок",
+   "buy": 500,
+   "sell": 3000,
+   "auction_start": 300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-7",
+   "deck": "vedro",
+   "num": 7,
+   "name": "Матёрый",
+   "buy": 600,
+   "sell": 2800,
+   "auction_start": 300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-8",
+   "deck": "vedro",
+   "num": 8,
+   "name": "Бочка",
+   "buy": 600,
+   "sell": 3000,
+   "auction_start": 300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-9",
+   "deck": "vedro",
+   "num": 9,
+   "name": "Езч",
+   "buy": 600,
+   "sell": 3200,
+   "auction_start": 300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-10",
+   "deck": "vedro",
+   "num": 10,
+   "name": "Галантный",
+   "buy": 700,
+   "sell": 3000,
+   "auction_start": 400,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-11",
+   "deck": "vedro",
+   "num": 11,
+   "name": "Гэцэха",
+   "buy": 700,
+   "sell": 3200,
+   "auction_start": 400,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-12",
+   "deck": "vedro",
+   "num": 12,
+   "name": "Сотка",
+   "buy": 700,
+   "sell": 3400,
+   "auction_start": 400,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-13",
+   "deck": "vedro",
+   "num": 13,
+   "name": "Стодевяностый",
+   "buy": 800,
+   "sell": 3400,
+   "auction_start": 400,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-14",
+   "deck": "vedro",
+   "num": 14,
+   "name": "Канжо",
+   "buy": 800,
+   "sell": 3600,
+   "auction_start": 400,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-15",
+   "deck": "vedro",
+   "num": 15,
+   "name": "Волчара",
+   "buy": 800,
+   "sell": 3000,
+   "auction_start": 400,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-16",
+   "deck": "vedro",
+   "num": 16,
+   "name": "Кабан",
+   "buy": 900,
+   "sell": 3400,
+   "auction_start": 500,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-17",
+   "deck": "vedro",
+   "num": 17,
+   "name": "Чирок",
+   "buy": 900,
+   "sell": 3600,
+   "auction_start": 500,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "vedro-18",
+   "deck": "vedro",
+   "num": 18,
+   "name": "Бумер",
+   "buy": 900,
+   "sell": 4000,
+   "auction_start": 500,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "bitye-1",
+   "deck": "bitye",
+   "num": 1,
+   "name": "Тибурон",
+   "buy": 600,
+   "sell": 3000,
+   "auction_start": 300,
+   "repair": {
+    "type": "die",
+    "die_1_2": 400,
+    "die_3_4": 600,
+    "die_5_6": 800
+   }
+  },
+  {
+   "id": "bitye-2",
+   "deck": "bitye",
+   "num": 2,
+   "name": "Золотая",
+   "buy": 1000,
+   "sell": 4000,
+   "auction_start": 500,
+   "repair": {
+    "type": "die",
+    "die_1_2": 400,
+    "die_3_4": 800,
+    "die_5_6": 1200
+   }
+  },
+  {
+   "id": "bitye-3",
+   "deck": "bitye",
+   "num": 3,
+   "name": "Кошка",
+   "buy": 800,
+   "sell": 5000,
+   "auction_start": 400,
+   "repair": {
+    "type": "die",
+    "die_1_2": 1000,
+    "die_3_4": 1600,
+    "die_5_6": 2200
+   }
+  },
+  {
+   "id": "bitye-4",
+   "deck": "bitye",
+   "num": 4,
+   "name": "Эрка",
+   "buy": 2000,
+   "sell": 6000,
+   "auction_start": 1000,
+   "repair": {
+    "type": "die",
+    "die_1_2": 200,
+    "die_3_4": 600,
+    "die_5_6": 1000
+   }
+  },
+  {
+   "id": "bitye-5",
+   "deck": "bitye",
+   "num": 5,
+   "name": "Каен",
+   "buy": 1000,
+   "sell": 7000,
+   "auction_start": 500,
+   "repair": {
+    "type": "die",
+    "die_1_2": 1000,
+    "die_3_4": 2000,
+    "die_5_6": 3000
+   }
+  },
+  {
+   "id": "bitye-6",
+   "deck": "bitye",
+   "num": 6,
+   "name": "Гелик",
+   "buy": 3000,
+   "sell": 8000,
+   "auction_start": 1500,
+   "repair": {
+    "type": "die",
+    "die_1_2": 400,
+    "die_3_4": 1000,
+    "die_5_6": 1600
+   }
+  },
+  {
+   "id": "bitye-7",
+   "deck": "bitye",
+   "num": 7,
+   "name": "Феникс",
+   "buy": 2000,
+   "sell": 8000,
+   "auction_start": 1000,
+   "repair": {
+    "type": "die",
+    "die_1_2": 1000,
+    "die_3_4": 1600,
+    "die_5_6": 2200
+   }
+  },
+  {
+   "id": "bitye-8",
+   "deck": "bitye",
+   "num": 8,
+   "name": "Макан",
+   "buy": 3000,
+   "sell": 9000,
+   "auction_start": 1500,
+   "repair": {
+    "type": "die",
+    "die_1_2": 600,
+    "die_3_4": 1200,
+    "die_5_6": 1800
+   }
+  },
+  {
+   "id": "bitye-9",
+   "deck": "bitye",
+   "num": 9,
+   "name": "Континент",
+   "buy": 2000,
+   "sell": 9000,
+   "auction_start": 1000,
+   "repair": {
+    "type": "die",
+    "die_1_2": 1000,
+    "die_3_4": 2000,
+    "die_5_6": 3000
+   }
+  },
+  {
+   "id": "bitye-10",
+   "deck": "bitye",
+   "num": 10,
+   "name": "Разобранный тягач",
+   "buy": 3000,
+   "sell": 10000,
+   "auction_start": 1500,
+   "repair": {
+    "type": "die",
+    "die_1_2": 1000,
+    "die_3_4": 1600,
+    "die_5_6": 2200
+   }
+  },
+  {
+   "id": "bitye-11",
+   "deck": "bitye",
+   "num": 11,
+   "name": "Хомяк",
+   "buy": 2000,
+   "sell": 10000,
+   "auction_start": 1000,
+   "repair": {
+    "type": "die",
+    "die_1_2": 2000,
+    "die_3_4": 3000,
+    "die_5_6": 4000
+   }
+  },
+  {
+   "id": "bitye-12",
+   "deck": "bitye",
+   "num": 12,
+   "name": "Пульман",
+   "buy": 4000,
+   "sell": 11000,
+   "auction_start": 2000,
+   "repair": {
+    "type": "die",
+    "die_1_2": 1000,
+    "die_3_4": 1600,
+    "die_5_6": 2200
+   }
+  },
+  {
+   "id": "bitye-13",
+   "deck": "bitye",
+   "num": 13,
+   "name": "Демон",
+   "buy": 3000,
+   "sell": 11000,
+   "auction_start": 1500,
+   "repair": {
+    "type": "die",
+    "die_1_2": 1000,
+    "die_3_4": 2000,
+    "die_5_6": 3000
+   }
+  },
+  {
+   "id": "bitye-14",
+   "deck": "bitye",
+   "num": 14,
+   "name": "Альфа",
+   "buy": 5000,
+   "sell": 12000,
+   "auction_start": 2500,
+   "repair": {
+    "type": "die",
+    "die_1_2": 400,
+    "die_3_4": 1000,
+    "die_5_6": 1600
+   }
+  },
+  {
+   "id": "bitye-15",
+   "deck": "bitye",
+   "num": 15,
+   "name": "ТТ",
+   "buy": 2000,
+   "sell": 12000,
+   "auction_start": 1000,
+   "repair": {
+    "type": "die",
+    "die_1_2": 2000,
+    "die_3_4": 4000,
+    "die_5_6": 6000
+   }
+  },
+  {
+   "id": "bitye-16",
+   "deck": "bitye",
+   "num": 16,
+   "name": "РР Спорт",
+   "buy": 5000,
+   "sell": 13000,
+   "auction_start": 2500,
+   "repair": {
+    "type": "die",
+    "die_1_2": 1000,
+    "die_3_4": 1600,
+    "die_5_6": 2200
+   }
+  },
+  {
+   "id": "bitye-17",
+   "deck": "bitye",
+   "num": 17,
+   "name": "Уголёк",
+   "buy": 3000,
+   "sell": 13000,
+   "auction_start": 1500,
+   "repair": {
+    "type": "die",
+    "die_1_2": 3000,
+    "die_3_4": 4000,
+    "die_5_6": 5000
+   }
+  },
+  {
+   "id": "bitye-18",
+   "deck": "bitye",
+   "num": 18,
+   "name": "Акула",
+   "buy": 4000,
+   "sell": 14000,
+   "auction_start": 2000,
+   "repair": {
+    "type": "die",
+    "die_1_2": 2000,
+    "die_3_4": 3000,
+    "die_5_6": 4000
+   }
+  },
+  {
+   "id": "bitye-19",
+   "deck": "bitye",
+   "num": 19,
+   "name": "Ай-8",
+   "buy": 3000,
+   "sell": 14000,
+   "auction_start": 1500,
+   "repair": {
+    "type": "die",
+    "die_1_2": 1000,
+    "die_3_4": 4000,
+    "die_5_6": 7000
+   }
+  },
+  {
+   "id": "bitye-20",
+   "deck": "bitye",
+   "num": 20,
+   "name": "Ураган",
+   "buy": 4000,
+   "sell": 15000,
+   "auction_start": 2000,
+   "repair": {
+    "type": "die",
+    "die_1_2": 2000,
+    "die_3_4": 4000,
+    "die_5_6": 6000
+   }
+  },
+  {
+   "id": "premium-1",
+   "deck": "premium",
+   "num": 1,
+   "name": "Понторезка",
+   "buy": 2000,
+   "sell": 9000,
+   "auction_start": 1000,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-2",
+   "deck": "premium",
+   "num": 2,
+   "name": "Безупречный",
+   "buy": 2200,
+   "sell": 9000,
+   "auction_start": 1100,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-3",
+   "deck": "premium",
+   "num": 3,
+   "name": "ЦЛ на V12",
+   "buy": 2400,
+   "sell": 9400,
+   "auction_start": 1200,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-4",
+   "deck": "premium",
+   "num": 4,
+   "name": "Крузак 105",
+   "buy": 2600,
+   "sell": 9800,
+   "auction_start": 1300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-5",
+   "deck": "premium",
+   "num": 5,
+   "name": "Мустанг",
+   "buy": 2600,
+   "sell": 10000,
+   "auction_start": 1300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-6",
+   "deck": "premium",
+   "num": 6,
+   "name": "Капсула времени",
+   "buy": 3600,
+   "sell": 10000,
+   "auction_start": 1800,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-7",
+   "deck": "premium",
+   "num": 7,
+   "name": "Хаммер 2",
+   "buy": 3800,
+   "sell": 10400,
+   "auction_start": 1900,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-8",
+   "deck": "premium",
+   "num": 8,
+   "name": "Панама",
+   "buy": 4000,
+   "sell": 11000,
+   "auction_start": 2000,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-9",
+   "deck": "premium",
+   "num": 9,
+   "name": "Слива",
+   "buy": 4200,
+   "sell": 15000,
+   "auction_start": 2100,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-10",
+   "deck": "premium",
+   "num": 10,
+   "name": "007",
+   "buy": 4400,
+   "sell": 12000,
+   "auction_start": 2200,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-11",
+   "deck": "premium",
+   "num": 11,
+   "name": "СРТ",
+   "buy": 4600,
+   "sell": 13000,
+   "auction_start": 2300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-12",
+   "deck": "premium",
+   "num": 12,
+   "name": "Ассенизатор",
+   "buy": 4800,
+   "sell": 13400,
+   "auction_start": 2400,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-13",
+   "deck": "premium",
+   "num": 13,
+   "name": "Крузак 200",
+   "buy": 5000,
+   "sell": 14000,
+   "auction_start": 2500,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-14",
+   "deck": "premium",
+   "num": 14,
+   "name": "Контик ГТ",
+   "buy": 5200,
+   "sell": 14600,
+   "auction_start": 2600,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-15",
+   "deck": "premium",
+   "num": 15,
+   "name": "РСКА",
+   "buy": 5400,
+   "sell": 15000,
+   "auction_start": 2700,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-16",
+   "deck": "premium",
+   "num": 16,
+   "name": "221",
+   "buy": 2000,
+   "sell": 9000,
+   "auction_start": 1000,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-17",
+   "deck": "premium",
+   "num": 17,
+   "name": "Стелс",
+   "buy": 2200,
+   "sell": 9000,
+   "auction_start": 1100,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-18",
+   "deck": "premium",
+   "num": 18,
+   "name": "Каен",
+   "buy": 2400,
+   "sell": 9400,
+   "auction_start": 1200,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-19",
+   "deck": "premium",
+   "num": 19,
+   "name": "Ебо",
+   "buy": 2600,
+   "sell": 9800,
+   "auction_start": 1300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-20",
+   "deck": "premium",
+   "num": 20,
+   "name": "Паршивец",
+   "buy": 2600,
+   "sell": 10000,
+   "auction_start": 1300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-21",
+   "deck": "premium",
+   "num": 21,
+   "name": "Кэдди",
+   "buy": 3600,
+   "sell": 10000,
+   "auction_start": 1800,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-22",
+   "deck": "premium",
+   "num": 22,
+   "name": "Праулер",
+   "buy": 3800,
+   "sell": 10400,
+   "auction_start": 1900,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-23",
+   "deck": "premium",
+   "num": 23,
+   "name": "Деф",
+   "buy": 4000,
+   "sell": 11000,
+   "auction_start": 2000,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-24",
+   "deck": "premium",
+   "num": 24,
+   "name": "Миник",
+   "buy": 4200,
+   "sell": 15000,
+   "auction_start": 2100,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-25",
+   "deck": "premium",
+   "num": 25,
+   "name": "Эфка",
+   "buy": 4400,
+   "sell": 12000,
+   "auction_start": 2200,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-26",
+   "deck": "premium",
+   "num": 26,
+   "name": "3Ч-й",
+   "buy": 4600,
+   "sell": 13000,
+   "auction_start": 2300,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-27",
+   "deck": "premium",
+   "num": 27,
+   "name": "Гелик",
+   "buy": 4800,
+   "sell": 13400,
+   "auction_start": 2400,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-28",
+   "deck": "premium",
+   "num": 28,
+   "name": "Р8",
+   "buy": 5000,
+   "sell": 14000,
+   "auction_start": 2500,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-29",
+   "deck": "premium",
+   "num": 29,
+   "name": "Супра",
+   "buy": 5200,
+   "sell": 14600,
+   "auction_start": 2600,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "premium-30",
+   "deck": "premium",
+   "num": 30,
+   "name": "35-й",
+   "buy": 5400,
+   "sell": 15000,
+   "auction_start": 2700,
+   "repair": {
+    "type": "defect_card"
+   }
+  },
+  {
+   "id": "retro-1",
+   "deck": "retro",
+   "num": 1,
+   "name": "Молния",
+   "buy": null,
+   "sell": 16000,
+   "auction_start": 2600,
+   "repair": {
+    "type": "fixed",
+    "cost": 3000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-2",
+   "deck": "retro",
+   "num": 2,
+   "name": "Бамблби",
+   "buy": null,
+   "sell": 16000,
+   "auction_start": 1600,
+   "repair": {
+    "type": "fixed",
+    "cost": 5000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-3",
+   "deck": "retro",
+   "num": 3,
+   "name": "Жук",
+   "buy": null,
+   "sell": 17000,
+   "auction_start": 3000,
+   "repair": {
+    "type": "fixed",
+    "cost": 3000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-4",
+   "deck": "retro",
+   "num": 4,
+   "name": "Фашка",
+   "buy": null,
+   "sell": 17000,
+   "auction_start": 2000,
+   "repair": {
+    "type": "fixed",
+    "cost": 6000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-5",
+   "deck": "retro",
+   "num": 5,
+   "name": "Мустанг 67",
+   "buy": null,
+   "sell": 18000,
+   "auction_start": 3600,
+   "repair": {
+    "type": "fixed",
+    "cost": 4000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-6",
+   "deck": "retro",
+   "num": 6,
+   "name": "Миата",
+   "buy": null,
+   "sell": 18000,
+   "auction_start": 2600,
+   "repair": {
+    "type": "fixed",
+    "cost": 6000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-7",
+   "deck": "retro",
+   "num": 7,
+   "name": "911",
+   "buy": null,
+   "sell": 19000,
+   "auction_start": 4000,
+   "repair": {
+    "type": "fixed",
+    "cost": 4000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-8",
+   "deck": "retro",
+   "num": 8,
+   "name": "Корвет",
+   "buy": null,
+   "sell": 19000,
+   "auction_start": 3000,
+   "repair": {
+    "type": "fixed",
+    "cost": 7000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-9",
+   "deck": "retro",
+   "num": 9,
+   "name": "Линк",
+   "buy": null,
+   "sell": 20000,
+   "auction_start": 4600,
+   "repair": {
+    "type": "fixed",
+    "cost": 5000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-10",
+   "deck": "retro",
+   "num": 10,
+   "name": "Экстаз из сарая",
+   "buy": null,
+   "sell": 20000,
+   "auction_start": 3600,
+   "repair": {
+    "type": "fixed",
+    "cost": 7000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-11",
+   "deck": "retro",
+   "num": 11,
+   "name": "Вайпер",
+   "buy": null,
+   "sell": 21000,
+   "auction_start": 5000,
+   "repair": {
+    "type": "fixed",
+    "cost": 5000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-12",
+   "deck": "retro",
+   "num": 12,
+   "name": "Экстаз из музея",
+   "buy": null,
+   "sell": 21000,
+   "auction_start": 4000,
+   "repair": {
+    "type": "fixed",
+    "cost": 8000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-13",
+   "deck": "retro",
+   "num": 13,
+   "name": "NSX",
+   "buy": null,
+   "sell": 22000,
+   "auction_start": 5000,
+   "repair": {
+    "type": "fixed",
+    "cost": 6000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-14",
+   "deck": "retro",
+   "num": 14,
+   "name": "Хаммер 1",
+   "buy": null,
+   "sell": 22000,
+   "auction_start": 4600,
+   "repair": {
+    "type": "fixed",
+    "cost": 8000
+   },
+   "auction_only": true
+  },
+  {
+   "id": "retro-15",
+   "deck": "retro",
+   "num": 15,
+   "name": "Чарджер",
+   "buy": null,
+   "sell": 23000,
+   "auction_start": 5600,
+   "repair": {
+    "type": "fixed",
+    "cost": 6000
+   },
+   "auction_only": true
+  }
+ ],
+ "defects": {
+  "vedro": [
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Мелкие недостатки",
+    "repair": {
+     "cost": 300
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Мелкие недостатки",
+    "repair": {
+     "cost": 300
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Мелкие недостатки",
+    "repair": {
+     "cost": 300
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Ремонт электрики",
+    "repair": {
+     "cost": 400
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Ремонт электрики",
+    "repair": {
+     "cost": 400
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Ремонт электрики",
+    "repair": {
+     "cost": 400
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Ремонт подвески",
+    "repair": {
+     "cost": 500
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Ремонт подвески",
+    "repair": {
+     "cost": 500
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Ремонт подвески",
+    "repair": {
+     "cost": 500
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Ржавый кузов",
+    "repair": {
+     "cost": 600
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Ржавый кузов",
+    "repair": {
+     "cost": 600
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Ржавый кузов",
+    "repair": {
+     "cost": 600
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Капиталка мотора",
+    "repair": {
+     "cost": 700
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Капиталка мотора",
+    "repair": {
+     "cost": 700
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "repair",
+    "name": "Капиталка мотора",
+    "repair": {
+     "cost": 700
+    }
+   },
+   {
+    "deck": "vedro",
+    "kind": "swap",
+    "name": "Обмен",
+    "text": "Немедленно поменяй эту тачку на 2 тачки из колоды «Вёдра» и возьми 2 дефекта."
+   },
+   {
+    "deck": "vedro",
+    "kind": "swap",
+    "name": "Обмен",
+    "text": "Немедленно поменяй эту тачку на 2 тачки из колоды «Вёдра» и возьми 2 дефекта."
+   },
+   {
+    "deck": "vedro",
+    "kind": "swap_pay",
+    "name": "Обмен с доплатой",
+    "text": "Поменяй эту тачку на тачку из любой колоды, доплатив разницу покупки (цена «Ретро» ×2). Если денег не хватает, попробуй в другой ход."
+   },
+   {
+    "deck": "vedro",
+    "kind": "buyer",
+    "name": "Есть покупатель",
+    "text": "Можешь продать эту тачку на «Скупке» как отремонтированную."
+   }
+  ],
+  "premium": [
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Мелкие недостатки",
+    "repair": {
+     "cost": 1400
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Мелкие недостатки",
+    "repair": {
+     "cost": 1400
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Мелкие недостатки",
+    "repair": {
+     "cost": 1400
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Мелкие недостатки",
+    "repair": {
+     "cost": 1400
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Ремонт электрики",
+    "repair": {
+     "cost": 2000
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Ремонт электрики",
+    "repair": {
+     "cost": 2000
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Ремонт электрики",
+    "repair": {
+     "cost": 2000
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Ремонт электрики",
+    "repair": {
+     "cost": 2000
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Ремонт подвески",
+    "repair": {
+     "cost": 2400
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Ремонт подвески",
+    "repair": {
+     "cost": 2400
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Ремонт подвески",
+    "repair": {
+     "cost": 2400
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Ремонт подвески",
+    "repair": {
+     "cost": 2400
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Капиталка мотора",
+    "repair": {
+     "cost": 3000
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Капиталка мотора",
+    "repair": {
+     "cost": 3000
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Капиталка мотора",
+    "repair": {
+     "cost": 3000
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "repair",
+    "name": "Капиталка мотора",
+    "repair": {
+     "cost": 3000
+    }
+   },
+   {
+    "deck": "premium",
+    "kind": "unrepairable",
+    "name": "Распил",
+    "text": "Нельзя отремонтировать. Можно продать на «Скупке» вместе с дефектом по аукционной цене (голубая иконка) машины."
+   },
+   {
+    "deck": "premium",
+    "kind": "unrepairable",
+    "name": "Запрет на регистрацию",
+    "text": "Нельзя отремонтировать. Можно продать на «Скупке» вместе с дефектом по аукционной цене (голубая иконка) машины."
+   },
+   {
+    "deck": "premium",
+    "kind": "unrepairable",
+    "name": "Юридические проблемы",
+    "text": "Нельзя отремонтировать. Можно продать на «Скупке» вместе с дефектом по аукционной цене (голубая иконка) машины."
+   }
+  ]
+ }
+}

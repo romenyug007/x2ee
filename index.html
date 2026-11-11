@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Автомонополист</title>
+<style>
+:root{--bg:#f4f1e8;--fg:#1c1b19;--card:#fff;--mut:#6b6659;--acc:#e0a800;--line:#d9d3c3;--bad:#b3261e;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#16161a;--fg:#eceae4;--card:#222228;--mut:#9a968b;--line:#34343c;--bad:#ff8a80;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#16161a;--fg:#eceae4;--card:#222228;--mut:#9a968b;--line:#34343c;--bad:#ff8a80;color-scheme:dark}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:10px}
+h1{font-size:20px;margin:6px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0}
+button{font:inherit;background:var(--acc);color:#1c1b19;border:0;border-radius:8px;padding:8px 12px;margin:3px 4px 3px 0;cursor:pointer}
+button.sec{background:var(--line);color:var(--fg)}
+input,select{font:inherit;padding:7px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);max-width:100%}
+.board{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,minmax(64px,1fr));gap:4px}
+.cell{border:1px solid var(--line);border-radius:8px;padding:4px;font-size:12px;background:var(--card);display:flex;flex-direction:column;justify-content:space-between;min-width:0}
+.cell.now{outline:3px solid var(--acc)}
+.mid{grid-row:2/4;grid-column:2/4;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;font-size:13px;color:var(--mut)}
+.tok{display:inline-block;width:20px;height:20px;border-radius:50%;color:#fff;font-size:11px;text-align:center;line-height:20px;margin-right:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 300px;min-width:0}
+.mut{color:var(--mut)}.bad{color:var(--bad)}
+.log{max-height:180px;overflow:auto;font-size:13px}
+.timer{font-weight:700;font-size:18px}
+.wide{overflow-x:auto}
+.chip{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;margin:1px 2px 1px 0}
+.d-vedro{background:#fff;color:#111;border:1px solid #888}.d-bitye{background:#2a8a3e;color:#fff}.d-premium{background:#2a62c9;color:#fff}.d-retro{background:#c62828;color:#fff}
+#dice{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:9}
+.die{width:110px;height:110px;border-radius:18px;background:#fff;color:#111;font:700 56px/110px system-ui;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.roll{animation:roll .9s ease-out}@keyframes roll{0%{transform:translateX(-180px) rotate(-540deg)}100%{transform:none}}
+</style></head><body><main>
+<h1>🚗 Автомонополист <span class="mut" style="font-size:13px">— онлайн</span></h1>
+<div id="app"></div><div id="dice"></div>
+</main>
+<script>
+// Автомонополист — движок правил (чистый JS, без зависимостей, работает в Node и в браузере).
+// Все суммы в евро. Состояние сериализуется в JSON; applyAction возвращает новое состояние.
+// Этап 1: основной цикл игры. Пока НЕ реализованы: совместная покупка и долги между игроками.
+
+const BOARD = [
+  'skupka',        // 0 — старт
+  'vedro', 'avtoservis', 'gonka_plus1', 'avtopodbor', 'bitye',
+  'skupka', 'premium', 'avtoservis', 'gonka_reroll', 'prokat', 'retro',
+];
+const MOVE_COST = [null, 0, 0, 300, 600, 1000, 3000, 10000]; // индекс = число шагов
+const START_CASH = 1500;
+const RACE_POT = 1000;
+const MOVE_SECONDS = 30;      // выбор числа шагов
+const ACT_SECONDS = 60;       // решение: что купить / активировать / гонка
+const AUCTION_SECONDS = 30;   // новый отсчёт после каждой ставки
+const RACE_JOIN_SECONDS = 30; // окно присоединения к гонке
+const RACE_ROLL_SECONDS = 15; // каждый участник гонки сам бросает куб; не бросил — бросается автоматически
+const LOAN_SECONDS = 15;      // окно ответа на запрос займа (не входит в 30 с хода)
+const LOAN_RATE_LATE = 0.2;  // с 5-го круга проценты начисляются по 20% за круг
+const LOAN_RATE = 0.1;        // +10% от суммы за каждый полный круг игры
+const LOAN_DEADLINE_ROUNDS = 5; // через 5 кругов — принудительный возврат ×2
+const DEFECT_COPIES = 2; // колоды дефектов бесконечные, состав кратен оригиналу
+const RENT = { vedro: 500, bitye: 500, premium: 1000, retro: 1000 };
+const TAXI = { vedro: 100, bitye: 100, premium: 200, retro: 200 };
+const CELL_DECK = { vedro: 'vedro', bitye: 'bitye', premium: 'premium', retro: 'retro' };
+
+class Illegal extends Error {}
+const fail = (m) => { throw new Error(m); };
+
+// ---------- ГСЧ (mulberry32, состояние хранится в state.rng) ----------
+function rnd(s) {
+  s.rng = (s.rng + 0x6D2B79F5) >>> 0;
+  let t = s.rng;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+const die = (s) => (s.forcedRolls && s.forcedRolls.length ? s.forcedRolls.shift() : 1 + Math.floor(rnd(s) * 6));
+function shuffle(s, arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd(s) * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ---------- создание игры ----------
+function createGame({ names, goal = 30000, seed = 1, cards, forcedRolls }) {
+  if (names.length < 2 || names.length > 6) fail('Игроков должно быть от 2 до 6');
+  if (![30000, 50000, 100000].includes(goal)) fail('Цель: 30000, 50000 или 100000');
+  const s = {
+    rng: seed >>> 0, goal, turn: 1, current: 0, phase: 'move', winner: null,
+    round: 1, loans: [], nextLoanId: 1, loanReq: null, loanReturn: null,
+    players: names.map((name, id) => ({ id, name, cash: START_CASH, pos: 0, cars: [], eliminated: false })),
+    catalog: {}, decks: { vedro: [], bitye: [], premium: [], retro: [] },
+    defectTemplate: cards.defects, defectDecks: { vedro: [], premium: [] },
+    pending: null, auction: null, race: null, repairRoll: null, log: [],
+  };
+  if (forcedRolls) s.forcedRolls = [...forcedRolls];
+  for (const c of cards.cars) { s.catalog[c.id] = c; s.decks[c.deck].push(c.id); }
+  for (const k of Object.keys(s.decks)) shuffle(s, s.decks[k]);
+  refillDefects(s, 'vedro'); refillDefects(s, 'premium');
+  // стартовая машина «Ведро» и дефект (только ремонтируемый, без обмена)
+  for (const p of s.players) {
+    const cardId = s.decks.vedro.shift();
+    const d = takeDefect(s, 'vedro', (x) => x.kind === 'repair');
+    p.cars.push({ id: cardId, repaired: false, defect: d, sellAsRepaired: false });
+  }
+  // первый ход — у кого больше на кубе, при равенстве перебрасывают лидеры
+  let cand = s.players.map((p) => p.id);
+  while (cand.length > 1) {
+    const r = cand.map((id) => [id, die(s)]);
+    const max = Math.max(...r.map((x) => x[1]));
+    cand = r.filter((x) => x[1] === max).map((x) => x[0]);
+  }
+  s.current = cand[0];
+  s.playerCount = names.length;
+  ev(s, { type: 'game_start', first: s.current });
+  return s;
+}
+
+function toBottom(s, car) { // проданные машины и снятые дефекты возвращаются в низ колоды
+  const c = s.catalog[car.id];
+  s.decks[c.deck].push(car.id);
+  if (car.defect && s.defectDecks[c.deck]) s.defectDecks[c.deck].push(car.defect);
+}
+function ev(s, e) { s.log.push(e); return e; }
+function refillDefects(s, deck) {
+  const arr = [];
+  for (let c = 0; c < DEFECT_COPIES; c++) arr.push(...s.defectTemplate[deck].map((d) => ({ ...d })));
+  s.defectDecks[deck] = shuffle(s, arr);
+}
+function takeDefect(s, deck, filter = () => true) {
+  if (!s.defectDecks[deck].some(filter)) refillDefects(s, deck);
+  const i = s.defectDecks[deck].findIndex(filter);
+  if (i < 0) fail('Нет подходящего дефекта');
+  return s.defectDecks[deck].splice(i, 1)[0];
+}
+
+// выдать игроку машину; для «Ведра» и «Премиума» тянется дефект с мгновенным эффектом
+function giveCar(s, p, cardId, depth = 0) {
+  const card = s.catalog[cardId];
+  const car = { id: cardId, repaired: false, defect: null, sellAsRepaired: false };
+  if (card.deck === 'vedro' || card.deck === 'premium') {
+    let d = takeDefect(s, card.deck, depth >= 2 ? (x) => x.kind !== 'swap' : () => true);
+    if (d.kind === 'swap' && s.decks.vedro.length < 1) d = takeDefect(s, card.deck, (x) => x.kind === 'repair');
+    if (d.kind === 'swap') {
+      ev(s, { type: 'swap', player: p.id, from: cardId });
+      for (let i = 0; i < 2 && s.decks.vedro.length; i++) giveCar(s, p, s.decks.vedro.shift(), depth + 1);
+      s.decks[card.deck].push(cardId); s.defectDecks[card.deck].push(d);
+      return;
+    }
+    car.defect = d;
+    if (d.kind === 'buyer') car.sellAsRepaired = true;
+  }
+  p.cars.push(car);
+  ev(s, { type: 'car_gained', player: p.id, cardId, defect: car.defect ? car.defect.name : null, defectCost: car.defect && car.defect.repair ? car.defect.repair.cost : null, defectText: car.defect ? (car.defect.text || null) : null });
+}
+
+// ---------- вспомогательное ----------
+const cur = (s) => s.players[s.current];
+const cellOf = (s, p) => BOARD[p.pos];
+const owned = (p, id) => p.cars.find((c) => c.id === id) || fail('У игрока нет такой машины');
+const isUnrepairable = (c) => c.defect && ['unrepairable', 'buyer', 'swap_pay'].includes(c.defect.kind);
+
+function repairCost(s, car) {
+  const card = s.catalog[car.id];
+  if (car.repaired || isUnrepairable(car)) return null;
+  if (card.deck === 'retro') return card.repair.cost;
+  if (card.deck === 'bitye') {
+    const r = s.repairRoll;
+    if (r == null) return null;
+    return card.repair[r <= 2 ? 'die_1_2' : r <= 4 ? 'die_3_4' : 'die_5_6'];
+  }
+  return car.defect.repair.cost;
+}
+function sellPrice(s, car) {
+  const card = s.catalog[car.id];
+  if (car.repaired || car.sellAsRepaired || (car.defect && car.defect.kind === 'buyer')) return card.sell;
+  if (car.defect && car.defect.kind === 'unrepairable') return card.auction_start;
+  return null;
+}
+const alive = (s) => s.players.filter((p) => !p.eliminated);
+const hasDebt = (s, p) => s.loans.some((l) => l.borrower === p.id);
+function carValue(s, car) { // оценка машины при взыскании долга: цена продажи, за вычетом ремонта, если он нужен
+  const k = s.catalog[car.id];
+  if (car.repaired || car.sellAsRepaired || (car.defect && car.defect.kind === 'buyer')) return k.sell;
+  if (car.defect && car.defect.kind === 'unrepairable') return k.auction_start;
+  const rep = k.deck === 'retro' ? k.repair.cost : k.deck === 'bitye' ? k.repair.die_3_4 : (car.defect && car.defect.repair ? car.defect.repair.cost : 0);
+  return k.sell - rep;
+}
+const loanInterest = (s, l) => { // 10% за каждый из первых 4 кругов, дальше 20% за круг
+  const e = Math.max(0, s.round - l.startRound);
+  return Math.round(l.principal * (LOAN_RATE * Math.min(e, 4) + LOAN_RATE_LATE * Math.max(0, e - 4)));
+};
+const loanDue = (s, l) => l.principal + loanInterest(s, l);
+
+function eliminate(s, p, lenderId) {
+  const lender = s.players[lenderId];
+  if (lender && !lender.eliminated) lender.cash += p.cash;
+  p.cars.forEach((c) => toBottom(s, c)); p.cash = 0; p.cars = []; p.eliminated = true; p.pos = -1;
+  s.loans = s.loans.filter((l) => l.borrower !== p.id && l.lender !== p.id);
+  ev(s, { type: 'eliminated', player: p.id, reason: 'loan_default', lender: lenderId });
+}
+// в начале хода должника: 5-й круг — красное предупреждение; 6-й круг — забирают машину,
+// не дешевле долга с процентами (с учётом ремонта); нет подходящей — платит ×2 от займа; нет денег — проигрыш
+function settleLoans(s, p) {
+  for (const l of s.loans.filter((x) => x.borrower === p.id)) {
+    const el = s.round - l.startRound;
+    if (el < LOAN_DEADLINE_ROUNDS) continue;
+    const due = loanDue(s, l);
+    if (el === LOAN_DEADLINE_ROUNDS) { ev(s, { type: 'loan_warning', borrower: p.id, lender: l.lender, due }); continue; }
+    const cand = p.cars.map((c) => ({ c, v: carValue(s, c) })).filter((x) => x.v >= due).sort((a, b) => a.v - b.v)[0];
+    if (cand) {
+      p.cars = p.cars.filter((c) => c !== cand.c); s.players[l.lender].cars.push(cand.c);
+      s.loans = s.loans.filter((x) => x !== l);
+      ev(s, { type: 'loan_seized', borrower: p.id, lender: l.lender, cardId: cand.c.id, value: cand.v, due });
+      continue;
+    }
+    const pay = l.principal * 2;
+    if (p.cash >= pay) {
+      p.cash -= pay; s.players[l.lender].cash += pay;
+      s.loans = s.loans.filter((x) => x !== l);
+      ev(s, { type: 'loan_forced', borrower: p.id, lender: l.lender, amount: pay });
+    } else { eliminate(s, p, l.lender); return true; }
+  }
+  return false;
+}
+function nextTurn(s) {
+  s.pending = s.auction = s.race = s.repairRoll = s.loanReq = s.loanReturn = null;
+  const n = s.players.length;
+  for (let g = 0; g < 4 * n; g++) {
+    s.current = (s.current + 1) % n;
+    if (s.current === 0) s.round += 1;
+    const p = cur(s);
+    if (p.eliminated) continue;
+    s.turn += 1; s.phase = 'move';
+    if (settleLoans(s, p)) continue;
+    break;
+  }
+  const a = alive(s);
+  if (a.length === 1 && s.winner == null) { s.winner = a[0].id; s.phase = 'over'; ev(s, { type: 'win', player: a[0].id, reason: 'last_player' }); }
+}
+function checkWinner(s) {
+  if (s.winner != null) return;
+  const w = s.players.find((p) => !p.eliminated && p.cash >= s.goal && !hasDebt(s, p));
+  if (w) { s.winner = w.id; s.phase = 'over'; ev(s, { type: 'win', player: w.id }); }
+}
+function destination(s, p, steps) {
+  const cap = (s.playerCount || s.players.length) <= 4 ? 1 : 2;
+  const full = (i) => s.players.filter((q) => q.id !== p.id && q.pos === i).length >= cap;
+  let pos = p.pos, n = 0;
+  for (let g = 0; n < steps && g < 200; g++) {
+    pos = (pos + 1) % BOARD.length;
+    if (pos === p.pos || full(pos)) continue;
+    n++;
+  }
+  if (n < steps) fail('Нет свободной клетки');
+  return pos;
+}
+
+// ---------- кто сейчас должен ходить ----------
+function actor(s) {
+  if (s.phase === 'loan') return s.loanReq.borrower;
+  if (s.phase === 'race_roll') return s.race.queue[0]; // бросает по очереди сам участник
+  if (s.phase === 'auction') return null;   // открытые торги: могут все
+  if (s.phase === 'race_join') return null; // открытое окно: могут все
+  if (s.phase === 'over') return null;
+  return s.current;
+}
+
+// ---------- действия ----------
+function applyAction(state, action) {
+  if (state.phase === 'over') return { ok: false, error: 'Игра закончена' };
+  const s = structuredClone(state);
+  s.log = [];
+  try {
+    const p = s.players[action.player], tp = action.type;
+    if (tp === 'auction_close' || tp === 'race_close') {
+      if (s.phase !== (tp === 'auction_close' ? 'auction' : 'race_join')) fail('Неверная фаза');
+    } else {
+      if (!p || p.eliminated) fail('Игрок выбыл');
+      if (tp === 'loan_accept') { if (s.phase !== 'loan') fail('Нет запроса займа'); }
+      else if (['bid', 'auction_pass', 'race_join', 'race_skip'].includes(tp) && ['auction', 'race_join'].includes(s.phase)) { /* открытые фазы */ }
+      else if (action.player !== actor(s)) fail('Сейчас не ваш ход');
+    }
+    if (LOAN_ACTIONS[action.type]) LOAN_ACTIONS[action.type](s, p, action);
+    else HANDLERS[s.phase] ? HANDLERS[s.phase](s, p, action) : fail('Неверная фаза');
+    checkWinner(s);
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+  return { ok: true, state: s, events: s.log };
+}
+
+const LOAN_PHASES = ['move', 'act', 'buy', 'repair', 'race_setup'];
+const LOAN_ACTIONS = {
+  // машины без шанса на ремонт («Есть покупатель», неремонтируемый «Премиум») можно продать в любой момент своего хода
+  sell_now(s, p, a) {
+    if (!['move', 'act'].includes(s.phase)) fail('Сейчас нельзя продавать');
+    if (!a.carIds || !a.carIds.length) fail('Выберите машины');
+    let total = 0;
+    for (const id of new Set(a.carIds)) {
+      const car = owned(p, id);
+      if (!car.defect || !['unrepairable', 'buyer'].includes(car.defect.kind)) fail('Эту машину можно продать только на «Скупке»');
+      total += sellPrice(s, car);
+    }
+    for (const id of new Set(a.carIds)) toBottom(s, owned(p, id));
+    p.cars = p.cars.filter((c) => !a.carIds.includes(c.id));
+    p.cash += total;
+    ev(s, { type: 'sold', player: p.id, carIds: a.carIds, total, now: true });
+  },
+  loan_request(s, p, a) {
+    if (!LOAN_PHASES.includes(s.phase)) fail('Сейчас нельзя просить в долг');
+    if (!Number.isInteger(a.amount) || a.amount < 1) fail('Неверная сумма');
+    if (!alive(s).some((x) => x.id !== p.id && x.cash >= a.amount)) fail('Ни у кого нет такой суммы');
+    s.loanReturn = s.phase; s.phase = 'loan';
+    s.loanReq = { borrower: p.id, amount: a.amount };
+    ev(s, { type: 'loan_request', borrower: p.id, amount: a.amount, seconds: LOAN_SECONDS });
+  },
+  loan_accept(s, p) {
+    const R = s.loanReq;
+    if (p.id === R.borrower) fail('Нельзя дать в долг самому себе');
+    if (p.cash < R.amount) fail('Не хватает денег');
+    p.cash -= R.amount; s.players[R.borrower].cash += R.amount;
+    s.loans.push({ id: s.nextLoanId++, lender: p.id, borrower: R.borrower, principal: R.amount, startRound: s.round });
+    ev(s, { type: 'loan_given', lender: p.id, borrower: R.borrower, amount: R.amount });
+    s.phase = s.loanReturn; s.loanReq = s.loanReturn = null; // первый согласившийся — игра сразу продолжается
+  },
+  loan_cancel(s, p) {
+    if (s.phase !== 'loan') fail('Нет запроса займа');
+    ev(s, { type: 'loan_cancelled', borrower: p.id });
+    s.phase = s.loanReturn; s.loanReq = s.loanReturn = null;
+  },
+  repay_loan(s, p, a) {
+    if (!['move', 'act'].includes(s.phase)) fail('Сейчас нельзя вернуть долг');
+    const l = s.loans.find((x) => x.id === a.loanId && x.borrower === p.id) || fail('Нет такого долга');
+    const due = loanDue(s, l);
+    if (p.cash < due) fail('Не хватает денег');
+    p.cash -= due; s.players[l.lender].cash += due;
+    s.loans = s.loans.filter((x) => x !== l);
+    ev(s, { type: 'loan_repaid', borrower: p.id, lender: l.lender, amount: due });
+  },
+};
+
+const HANDLERS = {
+  move(s, p, a) {
+    if (a.type !== 'move') fail('Сначала нужно передвинуть фишку');
+    const n = a.steps;
+    if (!Number.isInteger(n) || n < 1 || n > 7) fail('Шагов должно быть от 1 до 7');
+    const cost = MOVE_COST[n];
+    if (p.cash < cost) fail('Не хватает денег на ход');
+    const to = destination(s, p, n);
+    p.cash -= cost; p.pos = to; s.phase = 'act';
+    ev(s, { type: 'moved', player: p.id, steps: n, cost, to, cell: BOARD[to] });
+  },
+
+  act(s, p, a) {
+    const cell = cellOf(s, p);
+    switch (a.type) {
+      case 'taxi': {
+        const car = owned(p, a.carId);
+        const d = die(s), income = TAXI[s.catalog[car.id].deck] * d;
+        p.cash += income;
+        ev(s, { type: 'taxi', player: p.id, carId: car.id, die: d, income });
+        return nextTurn(s);
+      }
+      case 'pass': {
+        if (legal(s).some((x) => x.type !== 'pass')) fail('Есть доступные действия');
+        return nextTurn(s);
+      }
+      case 'buy_start': {
+        const deck = cell === 'avtopodbor' ? a.deck : CELL_DECK[cell];
+        if (!deck || !s.decks[deck]) fail('Здесь нельзя купить машину');
+        if (!s.decks[deck].length) fail('Колода закончилась');
+        s.pending = { cardId: s.decks[deck][0], deck };
+        s.phase = 'buy';
+        return ev(s, { type: 'revealed', player: p.id, cardId: s.pending.cardId });
+      }
+      case 'autoservice': {
+        if (cell !== 'avtoservis') fail('Это не автосервис');
+        s.repairRoll = p.cars.some((c) => !c.repaired && s.catalog[c.id].deck === 'bitye') ? die(s) : null;
+        s.phase = 'repair';
+        return ev(s, { type: 'repair_roll', player: p.id, die: s.repairRoll });
+      }
+      case 'sell': {
+        if (cell !== 'skupka') fail('Это не скупка');
+        if (!a.carIds || !a.carIds.length) fail('Выберите машины');
+        let total = 0;
+        for (const id of new Set(a.carIds)) {
+          const car = owned(p, id), price = sellPrice(s, car);
+          if (price == null) fail('Эту машину нельзя продать');
+          total += price;
+        }
+        p.cars.filter((c) => a.carIds.includes(c.id)).forEach((c) => toBottom(s, c));
+        p.cars = p.cars.filter((c) => !a.carIds.includes(c.id));
+        p.cash += total;
+        ev(s, { type: 'sold', player: p.id, carIds: a.carIds, total });
+        return nextTurn(s);
+      }
+      case 'rent': {
+        if (cell !== 'prokat') fail('Это не прокат');
+        const cars = p.cars.filter((c) => c.repaired);
+        if (!cars.length) fail('Нет отремонтированных машин');
+        const total = cars.reduce((t, c) => t + RENT[s.catalog[c.id].deck], 0);
+        p.cash += total;
+        ev(s, { type: 'rent', player: p.id, total });
+        return nextTurn(s);
+      }
+      case 'race_start': {
+        if (!cell.startsWith('gonka')) fail('Это не гонка');
+        if (!p.cars.length) fail('Для гонки нужна машина');
+        s.race = { organizer: p.id, pot: RACE_POT, stake: 0, participants: [p.id], joinQueue: [], rolls: null };
+        s.phase = 'race_setup';
+        return ev(s, { type: 'race_started', organizer: p.id, pot: RACE_POT });
+      }
+      case 'swap_pay': {
+        const car = owned(p, a.carId);
+        if (!car.defect || car.defect.kind !== 'swap_pay') fail('У машины нет такого дефекта');
+        if (!s.decks[a.deck] || !s.decks[a.deck].length) fail('Колода пуста');
+        const price = (id) => { const c = s.catalog[id]; return c.deck === 'retro' ? c.auction_start * 2 : c.buy; };
+        const newId = s.decks[a.deck][0];
+        const diff = Math.max(0, price(newId) - price(car.id));
+        if (p.cash < diff) fail('Не хватает денег на доплату');
+        p.cash -= diff;
+        s.decks[a.deck].shift();
+        toBottom(s, car); p.cars = p.cars.filter((c) => c !== car);
+        ev(s, { type: 'swap_pay', player: p.id, from: car.id, to: newId, diff });
+        giveCar(s, p, newId);
+        return nextTurn(s);
+      }
+      default: fail('Это действие сейчас недоступно');
+    }
+  },
+
+  buy(s, p, a) {
+    const { cardId, deck } = s.pending, card = s.catalog[cardId];
+    if (a.type === 'buy_direct') {
+      if (deck === 'retro') fail('«Ретро» покупается только на аукционе');
+      if (p.cash < card.buy) fail('Не хватает денег');
+      p.cash -= card.buy;
+      s.decks[deck].shift();
+      ev(s, { type: 'bought', player: p.id, cardId, price: card.buy });
+      giveCar(s, p, cardId);
+      return nextTurn(s);
+    }
+    if (a.type === 'auction_start') {
+      if (!Number.isInteger(a.amount) || a.amount < card.auction_start) fail('Ставка ниже стартовой');
+      if (a.amount > p.cash) fail('Не хватает денег');
+      s.auction = { cardId, deck, bid: a.amount, bidder: p.id, starter: p.id, passed: [] };
+      s.phase = 'auction';
+      return ev(s, { type: 'auction_started', player: p.id, cardId, bid: a.amount });
+    }
+    if (a.type === 'decline') {
+      s.decks[deck].push(s.decks[deck].shift());
+      ev(s, { type: 'discarded', player: p.id, cardId });
+      return nextTurn(s);
+    }
+    fail('Купите, объявите аукцион или откажитесь');
+  },
+
+  auction(s, p, a) { // открытые торги: ставить может любой; после каждой ставки новый отсчёт; можно отказаться
+    const A = s.auction;
+    const allOut = () => alive(s).filter((q) => q.id !== A.bidder).every((q) => A.passed.includes(q.id));
+    const finish = () => {
+      const w = s.players[A.bidder];
+      w.cash -= A.bid;
+      s.decks[A.deck].shift();
+      ev(s, { type: 'auction_won', player: w.id, cardId: A.cardId, price: A.bid });
+      giveCar(s, w, A.cardId);
+      nextTurn(s);
+    };
+    if (a.type === 'bid') {
+      if (A.passed.includes(p.id)) fail('Вы отказались от торгов');
+      if (p.id === A.bidder) fail('Ваша ставка уже лучшая');
+      if (!Number.isInteger(a.amount) || a.amount <= A.bid) fail('Ставка должна быть выше текущей');
+      if (a.amount > p.cash) fail('Не хватает денег');
+      A.bid = a.amount; A.bidder = p.id;
+      ev(s, { type: 'bid', player: p.id, amount: a.amount, seconds: AUCTION_SECONDS });
+      if (allOut()) finish(); // все остальные уже отказались
+      return;
+    }
+    if (a.type === 'auction_pass') {
+      if (p.id === A.bidder) fail('Вы лидируете в торгах');
+      if (!A.passed.includes(p.id)) A.passed.push(p.id);
+      ev(s, { type: 'auction_pass', player: p.id });
+      if (allOut()) finish();
+      return;
+    }
+    if (a.type === 'auction_close') return finish();
+    fail('Сделайте ставку или откажитесь');
+  },
+
+  loan() { fail('Ждём ответа на запрос займа'); },
+
+  repair(s, p, a) {
+    if (a.type !== 'repair') fail('Выберите машины для ремонта');
+    let total = 0;
+    const ids = [...new Set(a.carIds || [])];
+    for (const id of ids) {
+      const c = repairCost(s, owned(p, id));
+      if (c == null) fail('Эту машину сейчас нельзя отремонтировать');
+      total += c;
+    }
+    if (total > p.cash) fail('Не хватает денег');
+    p.cash -= total;
+    for (const id of ids) { const car = owned(p, id); if (car.defect) s.defectDecks[s.catalog[car.id].deck].push(car.defect); car.repaired = true; car.defect = null; car.sellAsRepaired = false; }
+    ev(s, { type: 'repaired', player: p.id, carIds: ids, total });
+    nextTurn(s);
+  },
+
+  race_setup(s, p, a) {
+    const R = s.race;
+    if (a.type === 'race_open') R.stake = 0;
+    else if (a.type === 'race_challenge') {
+      const q = s.players[a.target];
+      if (!q || q.id === p.id || q.eliminated) fail('Неверный соперник');
+      if (!q.cars.length) fail('У соперника нет машины');
+      if (!Number.isInteger(a.stake) || a.stake < 100 || a.stake % 100) fail('Взнос кратен 100 €');
+      if (a.stake > Math.floor(q.cash / 2)) fail('Не больше половины денег соперника');
+      if (p.cash < a.stake) fail('Не хватает денег');
+      p.cash -= a.stake; q.cash -= a.stake; // вызванный отказаться не может
+      R.stake = a.stake; R.pot += 2 * a.stake; R.participants.push(q.id);
+      ev(s, { type: 'race_challenge', organizer: p.id, target: q.id, stake: a.stake, seconds: RACE_JOIN_SECONDS });
+    } else fail('Вызовите соперника или откройте гонку');
+    R.skipped = []; s.phase = 'race_join';
+    if (!raceEligible(s).length) raceRoll(s);
+  },
+
+  race_join(s, p, a) { // 30 с окно: присоединиться может любой игрок с машиной и деньгами
+    const R = s.race;
+    if (a.type === 'race_close') return raceRoll(s);
+    if (!raceEligible(s).includes(p.id)) fail('Вы не можете участвовать');
+    if (a.type === 'race_join') {
+      p.cash -= R.stake; R.pot += R.stake; R.participants.push(p.id);
+      ev(s, { type: 'race_join', player: p.id });
+    } else if (a.type === 'race_skip') R.skipped.push(p.id);
+    else fail('Присоединитесь или откажитесь');
+    if (!raceEligible(s).length) raceRoll(s);
+  },
+
+  race_roll(s, p, a) {
+    const R = s.race;
+    if (a.type !== 'race_roll') fail('Бросьте кубик');
+    const d = die(s);
+    R.rolls[p.id] = d;
+    ev(s, { type: 'race_roll', player: p.id, die: d, tie: R.round > 1 });
+    R.queue.shift();
+    if (!R.queue.length) raceAfterRolls(s);
+  },
+
+  race_reroll(s, p, a) {
+    const R = s.race;
+    if (a.type === 'race_reroll') {
+      const d = die(s);
+      ev(s, { type: 'race_reroll', player: p.id, die: d, first: R.rolls[p.id] });
+      R.rolls[p.id] = Math.max(R.rolls[p.id], d);
+    } else if (a.type !== 'race_keep') fail('Перебросить или оставить');
+    raceResolve(s);
+  },
+};
+
+function raceEligible(s) {
+  const R = s.race;
+  return s.players.filter((q) => !q.eliminated && !R.participants.includes(q.id) && !R.skipped.includes(q.id) &&
+    q.cars.length && q.cash >= R.stake).map((q) => q.id);
+}
+function raceRoll(s) {
+  const R = s.race, org = s.players[R.organizer];
+  if (R.participants.length === 1) { // соперников нет — организатор забирает фонд
+    org.cash += R.pot;
+    ev(s, { type: 'race_won', player: org.id, pot: R.pot, rolls: null });
+    return nextTurn(s);
+  }
+  R.rolls = {}; R.queue = [...R.participants]; R.round = 1; R.tied = null;
+  s.phase = 'race_roll'; // участники бросают по очереди: организатор, вызванный, вступившие
+}
+function raceAfterRolls(s) {
+  const R = s.race, org = s.players[R.organizer];
+  if (R.round === 1) {
+    ev(s, { type: 'race_rolls', rolls: { ...R.rolls }, order: [...R.participants] });
+    const cell = BOARD[org.pos];
+    if (cell === 'gonka_plus1') { R.rolls[org.id] += 1; ev(s, { type: 'race_plus1', player: org.id }); }
+    else if (cell === 'gonka_reroll' && R.rolls[org.id] < 6) { s.phase = 'race_reroll'; return; }
+  }
+  raceResolve(s);
+}
+function raceResolve(s) {
+  const R = s.race, group = R.tied || R.participants;
+  const max = Math.max(...group.map((id) => R.rolls[id]));
+  const lead = group.filter((id) => R.rolls[id] === max);
+  if (lead.length > 1) { // одинаковые числа — лидеры бросают заново
+    R.round += 1; R.tied = lead; R.queue = [...lead]; s.phase = 'race_roll';
+    return ev(s, { type: 'race_tie', players: lead });
+  }
+  const w = s.players[lead[0]];
+  w.cash += R.pot;
+  ev(s, { type: 'race_won', player: w.id, pot: R.pot, rolls: R.rolls });
+  nextTurn(s);
+}
+
+// ---------- доступные действия (для интерфейса и ботов) ----------
+function legal(s) {
+  const p = actor(s) == null ? null : s.players[actor(s)], out = [];
+  if (s.phase === 'move') {
+    for (let n = 1; n <= 7; n++) {
+      try { destination(s, p, n); } catch { continue; }
+      if (p.cash >= MOVE_COST[n]) out.push({ type: 'move', steps: n, cost: MOVE_COST[n] });
+    }
+  } else if (s.phase === 'act') {
+    const cell = cellOf(s, p);
+    for (const c of p.cars) out.push({ type: 'taxi', carId: c.id });
+    if (CELL_DECK[cell] && s.decks[CELL_DECK[cell]].length) out.push({ type: 'buy_start' });
+    if (cell === 'avtopodbor') for (const d of Object.keys(s.decks)) if (s.decks[d].length) out.push({ type: 'buy_start', deck: d });
+    if (cell === 'avtoservis' && p.cars.some((c) => !c.repaired && !isUnrepairable(c))) out.push({ type: 'autoservice' });
+    if (cell === 'skupka') {
+      const ids = p.cars.filter((c) => sellPrice(s, c) != null).map((c) => c.id);
+      if (ids.length) out.push({ type: 'sell', carIds: ids, quotes: Object.fromEntries(ids.map((id) => [id, sellPrice(s, owned(p, id))])) });
+    }
+    if (cell === 'prokat' && p.cars.some((c) => c.repaired)) out.push({ type: 'rent' });
+    if (cell.startsWith('gonka') && p.cars.length) out.push({ type: 'race_start' });
+    for (const c of p.cars) if (c.defect && c.defect.kind === 'swap_pay') out.push({ type: 'swap_pay', carId: c.id });
+    if (!p.cars.length && out.every((x) => x.type === 'taxi')) out.push({ type: 'pass' });
+    if (!out.length) out.push({ type: 'pass' });
+  } else if (s.phase === 'buy') {
+    const card = s.catalog[s.pending.cardId];
+    if (s.pending.deck !== 'retro' && p.cash >= card.buy) out.push({ type: 'buy_direct', price: card.buy });
+    if (p.cash >= card.auction_start) out.push({ type: 'auction_start', min: card.auction_start });
+    out.push({ type: 'decline' });
+  } else if (s.phase === 'auction') {
+    out.push({ type: 'auction_pass' });
+    out.push({ type: 'bid', min: s.auction.bid + 1 }, { type: 'auction_close' });
+  } else if (s.phase === 'repair') {
+    out.push({ type: 'repair', carIds: p.cars.filter((c) => repairCost(s, c) != null).map((c) => c.id), roll: s.repairRoll });
+  } else if (s.phase === 'race_setup') {
+    out.push({ type: 'race_open' }, { type: 'race_challenge' });
+  } else if (s.phase === 'race_join') {
+    out.push({ type: 'race_join' }, { type: 'race_skip' }, { type: 'race_close' });
+  } else if (s.phase === 'race_reroll') {
+    out.push({ type: 'race_reroll' }, { type: 'race_keep' });
+  } else if (s.phase === 'race_roll') {
+    out.push({ type: 'race_roll' });
+  } else if (s.phase === 'loan') {
+    out.push({ type: 'loan_cancel' });
+  }
+  return out;
+}
+function legalActions(state) {
+  return state.phase === 'over' ? [] : legal(state).map((a) => ({ ...a, player: actor(state) }));
+}
+
+// займы: что может сделать игрок прямо сейчас (для интерфейса)
+function loanInfo(s, playerId) {
+  const p = s.players[playerId];
+  if (!p || p.eliminated || s.phase === 'over') return { canRequest: false, canAccept: false, repayable: [] };
+  const canRequest = playerId === s.current && LOAN_PHASES.includes(s.phase) &&
+    alive(s).some((x) => x.id !== playerId && x.cash > 0);
+  const canAccept = s.phase === 'loan' && playerId !== s.loanReq.borrower && p.cash >= s.loanReq.amount;
+  const repayable = playerId === s.current && ['move', 'act'].includes(s.phase)
+    ? s.loans.filter((l) => l.borrower === playerId).map((l) => ({
+        loanId: l.id, lender: l.lender, principal: l.principal, due: loanDue(s, l),
+        roundsLeft: Math.max(0, LOAN_DEADLINE_ROUNDS - (s.round - l.startRound)) }))
+    : [];
+  return { canRequest, canAccept, repayable };
+}
+
+function repairCosts(s, playerId) { // цена ремонта по каждой машине игрока
+  const out = {};
+  for (const c of s.players[playerId].cars) { const x = repairCost(s, c); if (x != null) out[c.id] = x; }
+  return out;
+}
+
+// ---------- таймеры ----------
+// Ход: 30 с на выбор шагов, потом 60 с на решение (покупка/ремонт/гонка...).
+// Аукцион: 15 с после каждой ставки. Окно гонки: 30 с. Займ: 15 с (вне таймера хода).
+// timeoutStep — один шаг «по умолчанию»: на старте хода это 1 шаг вперёд; затем такси.
+function timeoutStep(s) {
+  const who = actor(s);
+  if (s.phase === 'act' && !s.players[s.current].cars.length) { const c = structuredClone(s); c.log = []; nextTurn(c); return { ok: true, state: c }; }
+  const p = who == null ? null : s.players[who];
+  const a = {
+    loan: { type: 'loan_cancel' }, move: { type: 'move', steps: 1 },
+    act: p && p.cars.length ? { type: 'taxi', carId: [...p.cars].sort((x, y) => s.catalog[y.id].sell - s.catalog[x.id].sell)[0].id } : null, // такси на самой дорогой машине
+    buy: { type: 'decline' }, auction: { type: 'auction_close' }, repair: { type: 'repair', carIds: [] },
+    race_setup: { type: 'race_open' }, race_join: { type: 'race_close' }, race_roll: { type: 'race_roll' }, race_reroll: { type: 'race_keep' },
+  }[s.phase];
+  return applyAction(s, { ...a, player: who });
+}
+// доиграть ход до конца за игрока по умолчанию (истекла минута на решение)
+function timeoutTurn(state) {
+  let s = state;
+  const startTurn = s.turn;
+  for (let guard = 0; guard < 30 && s.phase !== 'over' && s.turn === startTurn; guard++) {
+    const r = timeoutStep(s);
+    if (!r.ok) return r;
+    s = r.state;
+  }
+  return { ok: true, state: s };
+}
+
+// публичное состояние для клиентов: без порядка карт в колодах
+function publicView(s) {
+  const v = structuredClone(s);
+  v.deckCounts = Object.fromEntries(Object.entries(s.decks).map(([k, d]) => [k, d.length]));
+  v.decks = undefined; v.defectDecks = undefined; v.defectTemplate = undefined; v.rng = undefined; v.forcedRolls = undefined;
+  return v;
+}
+
+
+const $=(s)=>document.querySelector(s);
+const COL=['#d33','#27a','#2a5','#d80','#92c','#088'];
+const CN={skupka:'Скупка',vedro:'Ведра',avtoservis:'Автосервис',gonka_plus1:'Гонка +1',avtopodbor:'Автоподбор',bitye:'Битьё',premium:'Премиум',gonka_reroll:'Гонка (переброс)',prokat:'Прокат',retro:'Ретро'};
+const DN={vedro:'Ведра',bitye:'Битьё',premium:'Премиум',retro:'Ретро'};
+const GRID=[[4,4],[4,3],[4,2],[4,1],[3,1],[2,1],[1,1],[1,2],[1,3],[1,4],[2,4],[3,4]];
+const eur=(n)=>Number(n).toLocaleString('ru-RU')+' €';
+let ME=-1,ROOM='',TOKEN='',CAT=null,LOBBY=null,es=null,lastGains=[],G=null,logs=[],deadline=0,curKey='',paused=null,toast='',rt=-1,rs=100;
+function tkey(){const s=G;return s.phase==='move'?'m'+s.turn:s.phase==='auction'?'a'+s.auction.bid+'/'+s.auction.bidder:s.phase==='race_join'?'r'+s.turn:s.phase==='loan'?'l':'t'+s.turn}
+function secs(k){return k[0]==='m'?MOVE_SECONDS:k[0]==='a'?AUCTION_SECONDS:k[0]==='r'?RACE_JOIN_SECONDS:k[0]==='l'?LOAN_SECONDS:ACT_SECONDS}
+const TL={g:'Бросок кубика: ',m:'Выбор шагов: ',t:'Решение: ',a:'Аукцион: ',r:'Окно гонки: ',l:'Займ: '};
+
+function nm(i){return G.players[i].name}
+function cn(id){return G.catalog[id].name}
+function fmt(e){const n=nm;switch(e.type){
+case 'game_start':return 'Игра началась, первым ходит '+n(e.first);
+case 'moved':return n(e.player)+' идёт на '+e.steps+(e.cost?' (−'+eur(e.cost)+')':'')+' → '+CN[e.cell];
+case 'revealed':return 'Открыта карта: '+cn(e.cardId);
+case 'bought':return n(e.player)+' купил «'+cn(e.cardId)+'» за '+eur(e.price);
+case 'car_gained':{const k=G.catalog[e.cardId];return n(e.player)+' получает '+chip(e.cardId)+' · продажа '+eur(k.sell)+' · '+rep(k,e.defect,e.defectCost)}
+case 'swap':return n(e.player)+': обмен «'+cn(e.from)+'» на две машины «Ведра»';
+case 'auction_started':return n(e.player)+' объявил аукцион, ставка '+eur(e.bid);
+case 'bid':return n(e.player)+' ставит '+eur(e.amount);
+case 'auction_pass':return n(e.player)+' пас';
+case 'auction_won':return n(e.player)+' выигрывает «'+cn(e.cardId)+'» за '+eur(e.price);
+case 'discarded':return 'Карта «'+cn(e.cardId)+'» ушла вниз колоды';
+case 'repair_roll':return e.die?'Куб для «Битьё»: '+e.die:'Автосервис';
+case 'repaired':return n(e.player)+' починил '+e.carIds.length+' шт. за '+eur(e.total);
+case 'sold':return n(e.player)+' продал машины на '+eur(e.total);
+case 'rent':return n(e.player)+' получает за прокат '+eur(e.total);
+case 'taxi':return n(e.player)+' в такси: куб '+e.die+' → +'+eur(e.income);
+case 'race_started':return n(e.organizer)+' организует гонку, фонд '+eur(e.pot);
+case 'race_challenge':return n(e.organizer)+' вызывает '+n(e.target)+', взнос '+eur(e.stake);
+case 'race_join':return n(e.player)+' вступает в гонку';
+case 'race_roll':return n(e.player)+' бросает: '+e.die+(e.tie?' (перебросок)':'');
+case 'race_tie':return 'Одинаковые числа — перебрасывают: '+e.players.map(n).join(', ');
+case 'loan_warning':return '⚠ '+n(e.borrower)+' должен '+n(e.lender)+' '+eur(e.due)+': на следующем круге заберут машину';
+case 'loan_seized':return n(e.borrower)+' отдаёт '+n(e.lender)+' машину «'+cn(e.cardId)+'» (оценка '+eur(e.value)+') в счёт долга '+eur(e.due);
+case 'race_rolls':return 'Кубы: '+Object.entries(e.rolls).map(([k,v])=>n(+k)+' '+v).join(', ');
+case 'race_plus1':return n(e.player)+' получает +1';
+case 'race_reroll':return n(e.player)+' перебрасывает: '+e.die+' (было '+e.first+')';
+case 'race_won':return n(e.player)+' выигрывает гонку: '+eur(e.pot);
+case 'loan_request':return n(e.borrower)+' просит в долг '+eur(e.amount);
+case 'loan_given':return n(e.lender)+' даёт '+n(e.borrower)+' '+eur(e.amount);
+case 'loan_cancelled':return 'Запрос займа отменён';
+case 'loan_repaid':return n(e.borrower)+' возвращает '+n(e.lender)+' '+eur(e.amount);
+case 'loan_forced':return n(e.borrower)+' принудительно возвращает '+eur(e.amount)+' → '+n(e.lender);
+case 'swap_pay':return n(e.player)+': обмен с доплатой '+eur(e.diff);
+case 'eliminated':return n(e.player)+' выбывает из-за долга';
+case 'win':return '🏆 Победитель: '+n(e.player);
+default:return e.type}}
+
+const api=(p,b)=>fetch(p,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json()).catch(()=>({error:'Нет связи с сервером'}));
+const store={get(){try{return JSON.parse(localStorage.getItem('am_session')||'null')}catch(e){return null}},set(v){try{v?localStorage.setItem('am_session',JSON.stringify(v)):localStorage.removeItem('am_session')}catch(e){}}};
+function boot(){const q=new URLSearchParams(location.search).get('room');const sv=store.get();
+ if(sv&&(!q||q.toUpperCase()===sv.ROOM)){ROOM=sv.ROOM;TOKEN=sv.TOKEN;connect()}else lobby()}
+function connect(){if(es)es.close();es=new EventSource('/api/events?room='+encodeURIComponent(ROOM)+'&token='+encodeURIComponent(TOKEN));es.onmessage=(m)=>onData(JSON.parse(m.data))}
+function leave(){if(es)es.close();store.set(null);ROOM='';TOKEN='';G=null;logs=[];lastGains=[];history.replaceState(null,'','/');lobby()}
+function onData(d){
+ if(d.error){if(es)es.close();store.set(null);ROOM='';TOKEN='';lobby(d.error);return}
+ ME=d.me;LOBBY=d;if(d.catalog)CAT=d.catalog;
+ if(d.phase==='lobby'){G=null;lobby();return}
+ G=Object.assign(d.state,{catalog:CAT});deadline=Date.now()+(d.deadline-d.now);curKey=d.key;
+ const ev=d.events||[];ev.forEach(e=>logs.unshift(fmt(e)));const gs=ev.filter(e=>e.type==='car_gained');if(gs.length)lastGains=gs;
+ toast='';render();if(ev.length)showDice(ev)}
+function lobby(msg){const app=$('#app');
+ if(!TOKEN){const q=(new URLSearchParams(location.search).get('room')||'').toUpperCase();
+  app.innerHTML='<div class="card"><p>Ваше имя:</p><input id="nm" maxlength="16" style="width:100%">'+(msg?'<p class="bad">'+msg+'</p>':'')+'<p><button id="cr">Создать комнату</button></p><p>или код комнаты: <input id="rc" value="'+q+'" maxlength="4" style="width:90px;text-transform:uppercase"> <button id="jn" class="sec">Войти</button></p></div>';
+  const go=async(path,body)=>{const r=await api(path,body);if(r.error){lobby(r.error);return}ROOM=r.room;TOKEN=r.token;store.set({ROOM,TOKEN});history.replaceState(null,'','/?room='+ROOM);connect()};
+  $('#cr').onclick=()=>go('/api/create',{name:$('#nm').value});
+  $('#jn').onclick=()=>go('/api/join',{name:$('#nm').value,room:$('#rc').value.trim().toUpperCase()});return}
+ if(!LOBBY){app.innerHTML='<div class="card">Подключаемся…</div>';return}
+ const link=location.origin+'/?room='+ROOM;
+ app.innerHTML='<div class="card"><p>Комната <b style="font-size:22px">'+ROOM+'</b></p><p>Ссылка для друзей:<br><input readonly value="'+link+'" style="width:100%" onclick="this.select()"></p><p><b>Игроки ('+LOBBY.players.length+'/6):</b></p>'+LOBBY.players.map((n,i)=>'<div><span class="tok" style="background:'+COL[i]+'">'+n[0]+'</span>'+n+(i===0?' (создатель)':'')+(i===ME?' — это вы':'')+'</div>').join('')+
+  (ME===0?'<p>Цель партии: <select id="goal"><option value="30000">30 000 €</option><option value="50000">50 000 €</option><option value="100000">100 000 €</option></select></p><button id="st"'+(LOBBY.players.length<2?' disabled':'')+'>Начать игру</button>':'<p class="mut">Ждём, пока создатель начнёт игру…</p>')+' <button class="sec" id="lv">Выйти</button></div>';
+ const st=$('#st');if(st)st.onclick=async()=>{const r=await api('/api/start',{room:ROOM,token:TOKEN,goal:+$('#goal').value});if(r.error)alert(r.error)};
+ $('#lv').onclick=leave}
+async function act(a){const r=await api('/api/action',{room:ROOM,token:TOKEN,action:a});if(r.error){toast=r.error;render()}}
+const actAs=(p,a)=>act(a);
+
+const val=(c)=>{const k=G.catalog[c.id];return(c.defect&&c.defect.kind==='unrepairable'&&!c.repaired)?k.auction_start:k.sell};
+const chip=(id)=>{const k=G.catalog[id];return '<span class="chip d-'+k.deck+'">'+k.name+'</span>'};
+function rep(k,dn,dc){if(k.deck==='bitye')return 'ремонт '+[k.repair.die_1_2,k.repair.die_3_4,k.repair.die_5_6].map(eur).join(' / ')+' (куб 1–2 / 3–4 / 5–6)';if(k.deck==='retro')return 'реставрация '+eur(k.repair.cost);return dn?('дефект «'+dn+'»'+(dc?', ремонт '+eur(dc):' — не ремонтируется')):'ремонт по дефекту'}
+function carLabel(c){return chip(c.id)+(c.repaired?' ✓':c.defect?' ('+c.defect.name+')':'')+' → '+eur(val(c))}
+function cardPanel(id,d,title){const c=G.catalog[id];let x='<div class="row"><div class="card"><span class="chip d-'+c.deck+'">'+DN[c.deck]+'</span> <b>'+c.name+'</b><br>'+(c.buy!=null?'Покупка: '+eur(c.buy)+'<br>':'Только аукцион<br>')+'Старт аукциона: '+eur(c.auction_start)+'<br>Продажа: '+eur(c.sell)+'<br>'+rep(c)+'</div>';
+ if(d)x+='<div class="card"><b>Дефект: '+d.name+'</b><br>'+(d.cost?'Ремонт: '+eur(d.cost):(d.text||'не ремонтируется'))+'</div>';
+ return '<div class="card"><b>'+(title||'Открытая карта')+'</b>'+x+'</div></div>'}
+function showDice(evs){const L=[];evs.forEach(e=>{if(e.type==='race_roll')L.push([nm(e.player)+(e.tie?' (перебросок)':''),e.die]);else if(e.type==='race_reroll')L.push([nm(e.player)+' (переброс)',e.die]);else if(e.type==='taxi')L.push([nm(e.player)+' · такси',e.die]);else if(e.type==='repair_roll'&&e.die)L.push(['Куб ремонта «Битьё»',e.die])});
+ const el=$('#dice');let i=0;(function step(){if(i>=L.length){el.style.display='none';return}const w=L[i][0],v=L[i][1];i++;el.style.display='flex';el.innerHTML='<div style="text-align:center;color:#fff"><div style="margin-bottom:10px;font-size:18px">'+w+'</div><div class="die roll">?</div></div>';const d=el.querySelector('.die');let k=0;const iv=setInterval(()=>{d.textContent=1+Math.floor(Math.random()*6);if(++k>9){clearInterval(iv);d.textContent=v}},60);setTimeout(step,1700)})()}
+
+function controls(){
+const s=G,p=s.players[ME],acts=legalActions(s),h=[];const has=(t)=>acts.filter(a=>a.type===t);
+if(['move','act'].includes(s.phase))p.cars.filter(c=>c.defect&&['unrepairable','buyer'].includes(c.defect.kind)).forEach(c=>h.push(`<button class="sec" data-a='{"type":"sell_now","carIds":["${c.id}"]}'>Продать сейчас: ${cn(c.id)} → ${eur(c.defect.kind==='buyer'?s.catalog[c.id].sell:s.catalog[c.id].auction_start)}</button>`));
+if(s.phase==='move')has('move').forEach(a=>h.push(`<button data-a='${JSON.stringify({type:'move',steps:a.steps})}'>${a.steps} ${a.steps==1?'шаг':'шага'} · ${a.cost?eur(a.cost):'бесплатно'}</button>`));
+if(s.phase==='act'){
+ acts.forEach(a=>{const j=(o)=>JSON.stringify(o).replace(/'/g,'&#39;');
+  if(a.type==='buy_start')h.push(`<button data-a='${j({type:'buy_start',deck:a.deck})}'>Купить${a.deck?' из «'+DN[a.deck]+'»':''}</button>`);
+  if(a.type==='autoservice')h.push(`<button data-a='${j({type:'autoservice'})}'>Ремонт</button>`);
+  if(a.type==='sell'){h.push('<p>Что продать (отметьте машины):</p>');a.carIds.forEach(id=>{const c=p.cars.find(x=>x.id===id);h.push(`<label style="display:block"><input type="checkbox" class="sc" value="${id}" data-v="${a.quotes[id]}"> ${chip(id)}${c.repaired?' ✓':''} → <b>${eur(a.quotes[id])}</b></label>`)});h.push('<p>Итого: <b id="st">0 €</b></p><button data-sell="1">Продать выбранные</button>')}
+  if(a.type==='rent')h.push(`<button data-a='${j({type:'rent'})}'>Сдать в прокат</button>`);
+  if(a.type==='race_start')h.push(`<button data-a='${j({type:'race_start'})}'>Начать гонку</button>`);
+  if(a.type==='swap_pay')Object.keys(s.decks).filter(d=>s.decks[d].length).forEach(d=>h.push(`<button class="sec" data-a='${j({type:'swap_pay',carId:a.carId,deck:d})}'>Обмен «${cn(a.carId)}» → ${DN[d]}</button>`));
+  if(a.type==='taxi')h.push(`<button class="sec" data-a='${j({type:'taxi',carId:a.carId})}'>Такси: ${cn(a.carId)}</button>`);
+  if(a.type==='pass')h.push(`<button class="sec" data-a='{"type":"pass"}'>Пропустить</button>`)})}
+if(s.phase==='buy'){const c=s.catalog[s.pending.cardId];
+ h.push(`<p><b>${c.name}</b> · ${DN[c.deck]} · продажа ${eur(c.sell)}${c.buy!=null?' · покупка '+eur(c.buy):''} · старт аукциона ${eur(c.auction_start)}</p>`);
+ has('buy_direct').forEach(a=>h.push(`<button data-a='{"type":"buy_direct"}'>Купить за ${eur(a.price)}</button>`));
+ has('auction_start').forEach(a=>h.push(`<input id="amt" type="number" value="${a.min}" min="${a.min}" step="10" style="width:110px"><button data-auc="1">Аукцион</button>`));
+ h.push(`<button class="sec" data-a='{"type":"decline"}'>Отказаться</button>`)}
+if(s.phase==='auction'){const A=s.auction;
+ h.push(`<p>Аукцион: «${cn(A.cardId)}» · сейчас <b>${eur(A.bid)}</b> (${nm(A.bidder)}). После каждой ставки новый отсчёт 30 с. У вас ${eur(p.cash)}.</p>`+(A.passed&&A.passed.includes(ME)?'<p class="mut">Вы отказались от торгов.</p>':A.bidder===ME?'<p class="mut">Ваша ставка лидирует.</p>':`<input id="amt" type="number" value="${A.bid+10}" min="${A.bid+1}" step="10" style="width:110px"><button data-bid="1">Сделать ставку</button> <button class="sec" data-a='{"type":"auction_pass"}'>Отказаться от торгов</button>`))}
+if(s.phase==='repair'){const r=has('repair')[0],cs=repairCosts(s,p.id);
+ h.push(`<p>${r.roll?'Куб «Битьё»: <b>'+r.roll+'</b>. ':''}Отметьте машины, итог считается ниже. У вас ${eur(p.cash)}.</p>`);
+ p.cars.filter(c=>cs[c.id]!=null).forEach(c=>h.push(`<label style="display:block"><input type="checkbox" class="rc" value="${c.id}" data-c="${cs[c.id]}"> ${carLabel(c)} — <b>${eur(cs[c.id])}</b></label>`));
+ h.push(`<p>Итого: <b id="rt2">0 €</b> <span id="rw" class="bad"></span></p><button data-rep="1">Починить выбранные</button><button class="sec" data-a='{"type":"repair","carIds":[]}'>Ничего не чинить</button>`)}
+if(s.phase==='race_setup'){const others=s.players.filter(q=>q.id!==p.id&&!q.eliminated&&q.cars.length&&Math.floor(q.cash/2)>=100);
+ h.push(`<button data-a='{"type":"race_open"}'>Открытая гонка (без вызова)</button>`);
+ if(others.length&&p.cash>=100){if(!others.some(q=>q.id===rt))rt=others[0].id;const T=s.players[rt],mx=Math.floor(Math.min(T.cash/2,p.cash)/100)*100;rs=Math.max(100,Math.min(rs,mx));
+  h.push(`<p>Вызвать: <select id="tg">${others.map(q=>`<option value="${q.id}" ${q.id===rt?'selected':''}>${q.name} (${eur(q.cash)})</option>`).join('')}</select><br>Взнос: <button class="sec" data-st="-100">−100</button><b> ${eur(rs)} </b><button class="sec" data-st="100">+100</button> <span class="mut">максимум ${eur(mx)}: не больше половины денег соперника и ваших</span><br><button data-ch="1">Вызвать на гонку</button></p>`)}}
+if(s.phase==='race_join'){const el=raceEligible(s).includes(ME);h.push(`<p>Гонка: взнос ${eur(s.race.stake)}, фонд ${eur(s.race.pot)}. Участники: ${s.race.participants.map(nm).join(', ')}. Присоединиться может любой игрок (30 с).</p>`+(el?`<button data-a='{"type":"race_join"}'>Вступить (${eur(s.race.stake)})</button>`:'')+(s.current===ME?`<button class="sec" data-a='{"type":"race_close"}'>Начать гонку</button>`:''))}
+if(s.phase==='race_roll')h.push('<p>Ваш бросок в гонке (15 с, иначе кубик бросится сам).</p><button data-a=\'{"type":"race_roll"}\'>Бросить кубик</button>');
+if(s.phase==='race_reroll')h.push(`<p>Организатор может перебросить куб (максимум из двух).</p><button data-a='{"type":"race_reroll"}'>Перебросить</button><button class="sec" data-a='{"type":"race_keep"}'>Оставить</button>`);
+return h.join('')}
+
+function render(){
+if(!G)return lobby();
+const s=G;
+const cur=s.players[actor(s)]||s.players[s.current];
+let b='';
+GRID.forEach((g,i)=>{b+=`<div class="cell ${s.players[s.current].pos===i?'now':''}" style="grid-row:${g[0]};grid-column:${g[1]}"><b>${CN[BOARD[i]]}</b><span>${s.players.filter(q=>q.pos===i).map(q=>`<span class="tok" style="background:${COL[q.id]}">${q.name[0]}</span>`).join('')}</span></div>`});
+b+=`<div class="mid"><div>Круг ${s.round} · цель ${eur(s.goal)}</div><div>${Object.entries(s.decks).map(([k,v])=>DN[k]+': '+v.length).join(' · ')}</div></div>`;
+let side=s.players.map(q=>`<div class="card" style="${q.id===s.current?'border-color:var(--acc)':''}${q.eliminated?';opacity:.5':''}"><span class="tok" style="background:${COL[q.id]}">${q.name[0]}</span><b>${q.name}</b> — ${eur(q.cash)}${q.eliminated?' (выбыл)':''}<div class="mut">${q.cars.map(carLabel).join('<br>')||'нет машин'}</div>${q.cars.length?'<div><b>≈ при продаже: '+eur(q.cars.reduce((t,c)=>t+val(c),0))+'</b></div>':''}${s.loans.filter(l=>l.borrower===q.id).map(l=>`<div class="bad">Долг ${nm(l.lender)}: ${eur(loanDue(s,l))}${s.round-l.startRound>=5?' <b>⚠ СРОЧНО верните: на следующем круге заберут машину</b>':''}</div>`).join('')}</div>`).join('');
+let top;
+if(s.phase==='over')top=`<h2>🏆 Победил ${nm(s.winner)}!</h2><button id="again">В меню</button>`;
+else{
+ const li=loanInfo(s,ME);let loan='';
+ if(s.phase==='loan'){const R=s.loanReq;loan='<p><b>'+nm(R.borrower)+'</b> просит в долг '+eur(R.amount)+'. 15 с на ответ.</p>'+(ME===R.borrower?'<button class="sec" data-a=\'{"type":"loan_cancel"}\'>Отмена</button>':(li.canAccept?'<button data-a=\'{"type":"loan_accept"}\'>Дать в долг '+eur(R.amount)+'</button>':'<span class="mut">У вас недостаточно денег</span>'))}
+ else{if(li.canRequest)loan+=`<p class="mut">Не хватает денег? <input id="la" type="number" value="500" step="100" style="width:90px"><button class="sec" data-loan="1">Попросить в долг</button></p>`;
+  li.repayable.forEach(r=>{if(r.roundsLeft===0)loan+='<div class="bad"><b>⚠ Срочно верните долг '+nm(r.lender)+': '+eur(r.due)+'. На следующем круге у вас заберут машину.</b></div>';loan+=`<button class="sec" data-rep-loan="${r.loanId}">Вернуть ${nm(r.lender)}: ${eur(r.due)} (до взыскания машины: ${r.roundsLeft+1} кр.)</button>`})}
+ top=`<div>Ходит: <span class="tok" style="background:${COL[cur.id]}">${cur.name[0]}</span><b>${cur.name}</b> · ${eur(cur.cash)} · <span class="timer" id="tm"></span></div>${toast?`<div class="bad">${toast}</div>`:''}<div>${s.phase==='loan'?'':((['auction','race_join'].includes(s.phase)||actor(s)===ME)?controls():'<p class="mut">Ждём ход игрока '+cur.name+'…</p>')}${loan}</div>`}
+const panel=(s.phase==='buy'&&s.pending)?cardPanel(s.pending.cardId):(s.phase==='auction'&&s.auction)?cardPanel(s.auction.cardId):lastGains.map(g=>cardPanel(g.cardId,g.defect?{name:g.defect,cost:g.defectCost,text:g.defectText}:null,'Получено: '+nm(g.player))).join('');
+$('#app').innerHTML=`<div class="card">${top}</div><div class="row"><div><div class="board">${b}</div></div><div>${side}</div></div>${panel}<div class="card log">${logs.slice(0,60).map(l=>'<div>'+l+'</div>').join('')}</div>`;
+document.querySelectorAll('[data-a]').forEach(e=>e.onclick=()=>act(JSON.parse(e.dataset.a)));
+const q=(sel,f)=>{const e=document.querySelector(sel);if(e)e.onclick=f};
+q('[data-auc]',()=>act({type:'auction_start',amount:+$('#amt').value}));
+q('[data-bid]',()=>act({type:'bid',amount:+$('#amt').value}));
+document.querySelectorAll('[data-as]').forEach(e=>e.onclick=()=>{const o=JSON.parse(e.dataset.as);act({type:o.type})});
+document.querySelectorAll('[data-st]').forEach(e=>e.onclick=()=>{rs+=+e.dataset.st;render()});
+const tg=$('#tg');if(tg)tg.onchange=()=>{rt=+tg.value;render()};
+const upd=()=>{let t=0;document.querySelectorAll('.rc:checked').forEach(e=>t+=+e.dataset.c);const c=G.players[ME].cash;if($('#rt2')){$('#rt2').textContent=eur(t);$('#rw').textContent=t>c?'не хватает '+eur(t-c):''}};
+document.querySelectorAll('.rc').forEach(e=>e.onchange=upd);
+q('[data-rep]',()=>act({type:'repair',carIds:[...document.querySelectorAll('.rc:checked')].map(e=>e.value)}));
+q('[data-ch]',()=>act({type:'race_challenge',target:rt,stake:rs}));
+q('[data-loan]',()=>act({type:'loan_request',amount:+$('#la').value}));
+document.querySelectorAll('[data-lend]').forEach(e=>e.onclick=()=>actAs(+e.dataset.lend,{type:'loan_accept'}));
+document.querySelectorAll('[data-rep-loan]').forEach(e=>e.onclick=()=>act({type:'repay_loan',loanId:+e.dataset.repLoan}));
+document.querySelectorAll('.sc').forEach(e=>e.onchange=()=>{let x=0;document.querySelectorAll('.sc:checked').forEach(y=>x+=+y.dataset.v);$('#st').textContent=eur(x)});
+q('[data-sell]',()=>act({type:'sell',carIds:[...document.querySelectorAll('.sc:checked')].map(e=>e.value)}));
+q('#again',leave)}
+
+setInterval(()=>{if(!G||G.phase==='over')return;const t=$('#tm');if(t)t.textContent=(TL[curKey[0]]||'')+Math.max(0,Math.ceil((deadline-Date.now())/1000))+' с'},250);
+boot();
+</script></body></html>

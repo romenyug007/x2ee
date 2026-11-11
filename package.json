@@ -1,0 +1,13 @@
+{
+  "name": "avtomonopolist-online",
+  "version": "1.0.0",
+  "description": "Автомонополист — онлайн-версия настольной игры (без внешних зависимостей)",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.js",
+    "build": "node build-client.mjs",
+    "test": "node --test --test-timeout=20000 avtomonopolist-engine.test.mjs avtomonopolist-loans.test.mjs server.test.mjs"
+  }
+}

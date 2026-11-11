@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: avtomonopolist
+    runtime: node
+    plan: starter        # starter — не засыпает; free — засыпает при простое
+    buildCommand: "echo ok"
+    startCommand: node server.js
+    healthCheckPath: /health
